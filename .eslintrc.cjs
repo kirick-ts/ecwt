@@ -15,15 +15,20 @@ module.exports = {
 		'eslint:recommended',
 		'xo',
 		'plugin:import/recommended',
+		'plugin:jsdoc/recommended',
 		'plugin:promise/recommended',
 		'plugin:unicorn/recommended',
 		'plugin:node/recommended',
 	],
 	plugins: [
 		'import',
+		'jsdoc',
 		'promise',
 		'unicorn',
 		'node',
+	],
+	ignorePatterns: [
+		'dist/**/*',
 	],
 	rules: {
 		'array-bracket-spacing': [
@@ -81,6 +86,12 @@ module.exports = {
 				newIsCap: true,
 				capIsNew: true,
 				properties: false,
+			},
+		],
+		'no-console': [
+			'error',
+			{
+				allow: [ 'warn', 'error' ],
 			},
 		],
 		'no-multi-spaces': [
