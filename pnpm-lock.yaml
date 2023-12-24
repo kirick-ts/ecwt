@@ -15,8 +15,8 @@ dependencies:
     specifier: 1.5.6
     version: 1.5.6
   evilcrypt:
-    specifier: 0.2.0-beta.2
-    version: 0.2.0-beta.2
+    specifier: 0.2.0-beta.4
+    version: 0.2.0-beta.4
   lru-cache:
     specifier: ^7 || ^8 || ^9 || ^10
     version: 10.1.0
@@ -1876,8 +1876,8 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
-  /evilcrypt@0.2.0-beta.2:
-    resolution: {integrity: sha512-5RazFHTjb61zTXfu2lWe5epXaY9XIyMvgk1TPOuHIX05fr6RVwn21rDe2Kbfi2XJfniRXNLfy+ejpzwLYSOYxg==}
+  /evilcrypt@0.2.0-beta.4:
+    resolution: {integrity: sha512-3G+C/fnDDM2UljA3o5SAiIaOJwv/AhWp1D8vU6BK5JodkQ70dkMbVvxl/uI+jgruARuHcp1mB/9Qfy9LxOXTBQ==}
     engines: {node: '>=14.0.0'}
     dev: false
 

@@ -242,7 +242,7 @@ var EcwtFactory = class {
       ttl,
       payload
     ]);
-    const token_encrypted = await (0, import_evilcrypt.encrypt)(
+    const token_encrypted = await import_evilcrypt.v2.encrypt(
       token_raw,
       this.#encryption_key
     );

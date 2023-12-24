@@ -4,8 +4,8 @@ import {
 	encode as cborEncode,
 	decode as cborDecode }        from 'cbor-x';
 import {
-	encrypt as evilcryptEncrypt,
-	decrypt as evilcryptDecrypt } from 'evilcrypt';
+	decrypt as evilcryptDecrypt,
+	v2 as evilcryptV2          }  from 'evilcrypt';
 import { LRUCache }               from 'lru-cache';
 import { createClient }           from 'redis';
 import { Ecwt }                   from './token.js';
@@ -154,7 +154,7 @@ export class EcwtFactory {
 			payload,
 		]);
 
-		const token_encrypted = await evilcryptEncrypt(
+		const token_encrypted = await evilcryptV2.encrypt(
 			token_raw,
 			this.#encryption_key,
 		);
