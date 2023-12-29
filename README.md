@@ -147,18 +147,23 @@ create(
         [key: string]: any,
     },
     options: {
-        ttl: number?,
+        ttl: number | null,
     }
 ): Promise<Ecwt>
 ```
 
 Creates a token.
 
-`options.ttl` specifies the time to live of the token in seconds. If not specified, the token will not expire.
+`options.ttl` specifies the time to live of the token in seconds. If set to null, token will never expire.
+
+> **Be careful with `ttl=null`!**
+>
+> Revoked tokens are stored in Redis until they expire. But such tokens will be stored in Redis forever, which will lead to uncontrolled Redis database growth.
 
 Returns `Ecwt` instance.
 
 ```javascript
+// Example
 const ecwt_token = await ecwtFactory.create(
     {
         user_id: 1,
@@ -201,29 +206,33 @@ Represents the token. It cannot be created by the user.
 import { Ecwt } from 'ecwt';
 ```
 
-#### Class property `token: string`
+#### Class property `readonly token: string`
 
 The string representation of the token.
 
-#### Class property `id: string`
+#### Class property `readonly id: string`
 
 The unique ID of the token.
 
-#### Class property `snowflake: Snowflake`
+#### Class property `readonly snowflake: Snowflake`
 
 The `Snowflake` instance of the token. For documentation, see [snowflake-js repository](https://github.com/kirick13/snowflake-js).
 
-#### Class property `ts_expired: number`
+#### Class property `readonly ts_expired: number | null`
 
-The timestamp of the token expiration in seconds. If the token does not expire, it is `Number.POSITIVE_INFINITY`.
+The timestamp of the token expiration in seconds. Equals to `null` if the token does not expire.
 
-#### Class property `ttl: number`
-
-Current the time to live of the token in seconds. If the token does not expire, it is `Number.POSITIVE_INFINITY`.
-
-#### Class property `data: { [key: string]: any }`
+#### Class property `readonly data: { [key: string]: any }`
 
 The payload of the token.
+
+#### Class method `getTTL`
+
+```typescript
+getTTL(): number | null
+```
+
+Returns current the time to live of the token in seconds. If the token does not expire, returns `null`.
 
 #### Class method `revoke`
 
@@ -231,4 +240,4 @@ The payload of the token.
 revoke(): Promise<void>
 ```
 
-Revokes the token. It will be impossible to verify it after that.
+Revokes the token. Attempts to verify the revoked token will throw `EcwtRevokedError`.

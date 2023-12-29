@@ -1,6 +1,6 @@
 {
 	"name": "ecwt",
-	"version": "0.1.0-beta.3",
+	"version": "0.1.1-beta.1",
 	"description": "Encrypted CBOR-encoded Web Token",
 	"main": "src/main.js",
 	"type": "module",
@@ -19,7 +19,7 @@
 		"evilcrypt": "0.2.0-beta.4"
 	},
 	"peerDependencies": {
-		"@kirick/snowflake": "^0.2.0-beta.7",
+		"@kirick/snowflake": "^0.2.1-beta.1",
 		"lru-cache": "^7 || ^8 || ^9 || ^10",
 		"redis": "^4"
 	},

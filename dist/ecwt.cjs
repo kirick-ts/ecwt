@@ -47,18 +47,57 @@ function toSeconds(value) {
 }
 
 // src/token.js
+function assign(target, key, value) {
+  Object.defineProperty(
+    target,
+    key,
+    {
+      value,
+      enumerable: true,
+      writable: false,
+      configurable: false
+    }
+  );
+}
 var Ecwt = class {
   #ecwtFactory;
-  #token;
-  #snowflake;
   #ttl_initial;
-  #data;
+  /**
+   * Token string representation.
+   * @type {string}
+   * @readonly
+   */
+  token;
+  /**
+   * Token ID.
+   * @type {string}
+   * @readonly
+   */
+  id;
+  /**
+   * Snowflake associated with token.
+   * @type {Snowflake}
+   * @readonly
+   */
+  snowflake;
+  /**
+   * Timestamp when token expires in seconds.
+   * @type {number?}
+   * @readonly
+   */
+  ts_expired;
+  /**
+   * Data stored in token.
+   * @type {{ [key: string]: any }}
+   * @readonly
+   */
+  data;
   /**
    * @param {EcwtFactory} ecwtFactory -
    * @param {object} options -
    * @param {string} options.token String representation of token.
    * @param {Snowflake} options.snowflake -
-   * @param {number | null} options.ttl_initial Time to live in seconds at the moment of token creation.
+   * @param {number?} options.ttl_initial Time to live in seconds at the moment of token creation.
    * @param {object} options.data Data stored in token.
    */
   constructor(ecwtFactory, {
@@ -68,45 +107,46 @@ var Ecwt = class {
     data
   }) {
     this.#ecwtFactory = ecwtFactory;
-    this.#token = token;
-    this.#snowflake = snowflake;
     this.#ttl_initial = ttl_initial;
-    this.#data = Object.freeze(data);
+    assign(this, "token", token);
+    assign(
+      this,
+      "id",
+      snowflake.toBase62()
+    );
+    assign(this, "snowflake", snowflake);
+    assign(
+      this,
+      "ts_expired",
+      this.#getTimestampExpired()
+    );
+    assign(
+      this,
+      "data",
+      Object.freeze(data)
+    );
   }
-  get token() {
-    return this.#token;
-  }
-  get id() {
-    return this.#snowflake.base62;
-  }
-  get snowflake() {
-    return this.#snowflake;
-  }
-  get ts_expired() {
+  #getTimestampExpired() {
     if (this.#ttl_initial === null) {
-      return Number.POSITIVE_INFINITY;
+      return null;
     }
-    return toSeconds(this.#snowflake.timestamp) + this.#ttl_initial;
+    return toSeconds(this.snowflake.timestamp) + this.#ttl_initial;
   }
   /**
-   * Time to live in seconds.
-   * @type {number}
-   * @readonly
+   * Actual time to live in seconds.
+   * @returns {number | null} -
    */
-  get ttl() {
+  getTTL() {
     if (this.#ttl_initial === null) {
-      return Number.POSITIVE_INFINITY;
+      return null;
     }
-    return this.#ttl_initial - toSeconds(Date.now() - this.#snowflake.timestamp);
-  }
-  get data() {
-    return this.#data;
+    return this.#ttl_initial - toSeconds(Date.now() - this.snowflake.timestamp);
   }
   /* async */
   revoke() {
     return this.#ecwtFactory._revoke({
       token_id: this.id,
-      ts_ms_created: this.#snowflake.timestamp,
+      ts_ms_created: this.snowflake.timestamp,
       ttl_initial: this.#ttl_initial
     });
   }
@@ -233,12 +273,12 @@ var EcwtFactory = class {
       }
       payload.push(value);
     }
-    if (typeof ttl !== "number" && Number.isNaN(ttl) !== true || ttl === Number.POSITIVE_INFINITY) {
-      ttl = null;
+    if (typeof ttl !== "number" && Number.isNaN(ttl) !== true && ttl !== null) {
+      throw new TypeError("TTL must be a number or null.");
     }
     const snowflake = await this.#snowflakeFactory.createSafe();
     const token_raw = (0, import_cbor_x.encode)([
-      snowflake.buffer,
+      snowflake.toBuffer(),
       ttl,
       payload
     ]);
@@ -360,6 +400,7 @@ var EcwtFactory = class {
     ttl_initial
   }) {
     if (this.#redisClient) {
+      ttl_initial = ttl_initial ?? Number.MAX_SAFE_INTEGER;
       const ts_ms_expired = ts_ms_created + ttl_initial * 1e3;
       if (ts_ms_expired > Date.now()) {
         await this.#redisClient.sendCommand([

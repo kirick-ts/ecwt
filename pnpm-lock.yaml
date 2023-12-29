@@ -6,8 +6,8 @@ settings:
 
 dependencies:
   '@kirick/snowflake':
-    specifier: ^0.2.0-beta.7
-    version: 0.2.0-beta.7
+    specifier: ^0.2.1-beta.1
+    version: 0.2.1-beta.1
   base-x:
     specifier: 4.0.0
     version: 4.0.0
@@ -788,8 +788,8 @@ packages:
       '@jridgewell/sourcemap-codec': 1.4.15
     dev: true
 
-  /@kirick/snowflake@0.2.0-beta.7:
-    resolution: {integrity: sha512-oS1j+JLJUIQxQ/Hu0Hb9yg6R2trTlxNYRf/EdsR/sF4PQ1d7M9Xo+aCv/6uKW1GI0gPWmOoUQuDARdKUnP8k1A==}
+  /@kirick/snowflake@0.2.1-beta.1:
+    resolution: {integrity: sha512-pvOaAKFOuWbA/X+Cx/OCqcSmCFvgickB1ypMO4DWPDh+oFTga7985u6c/Z3sLzF+N3bZRVmy5tFEeOM6vEbCsQ==}
     engines: {node: '>=10.4.0'}
     dependencies:
       base-x: 4.0.0

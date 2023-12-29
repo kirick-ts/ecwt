@@ -93,7 +93,9 @@ describe('create token', () => {
 		expect(typeof ecwt.token).toBe('string');
 		// console.log('token', ecwt.token);
 		expect(ecwt.ts_expired).toBe(ts_expired);
-		expect(ecwt.ttl).toBe(10);
+		expect(
+			ecwt.getTTL(),
+		).toBe(10);
 
 		await ecwtFactory.verify(ecwt.token);
 	});

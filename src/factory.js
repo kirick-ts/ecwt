@@ -137,19 +137,17 @@ export class EcwtFactory {
 		}
 
 		if (
-			(
-				typeof ttl !== 'number'
-				&& Number.isNaN(ttl) !== true
-			)
-			|| ttl === Number.POSITIVE_INFINITY
+			typeof ttl !== 'number'
+			&& Number.isNaN(ttl) !== true
+			&& ttl !== null
 		) {
-			ttl = null;
+			throw new TypeError('TTL must be a number or null.');
 		}
 
 		const snowflake = await this.#snowflakeFactory.createSafe();
 
 		const token_raw = cborEncode([
-			snowflake.buffer,
+			snowflake.toBuffer(),
 			ttl,
 			payload,
 		]);
@@ -299,6 +297,8 @@ export class EcwtFactory {
 		ttl_initial,
 	}) {
 		if (this.#redisClient) {
+			ttl_initial = ttl_initial ?? Number.MAX_SAFE_INTEGER;
+
 			const ts_ms_expired = ts_ms_created + (ttl_initial * 1000);
 			if (ts_ms_expired > Date.now()) {
 				await this.#redisClient.sendCommand([
