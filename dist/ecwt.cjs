@@ -30,7 +30,10 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var main_exports = {};
 __export(main_exports, {
   Ecwt: () => Ecwt,
-  EcwtFactory: () => EcwtFactory
+  EcwtExpiredError: () => EcwtExpiredError,
+  EcwtFactory: () => EcwtFactory,
+  EcwtInvalidError: () => EcwtInvalidError,
+  EcwtRevokedError: () => EcwtRevokedError
 });
 module.exports = __toCommonJS(main_exports);
 
@@ -426,5 +429,8 @@ var EcwtFactory = class {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   Ecwt,
-  EcwtFactory
+  EcwtExpiredError,
+  EcwtFactory,
+  EcwtInvalidError,
+  EcwtRevokedError
 });

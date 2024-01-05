@@ -156,15 +156,15 @@ Creates a token.
 
 `options.ttl` specifies the time to live of the token in seconds. If set to null, token will never expire.
 
-> **Be careful with `ttl=null`!**
+> **Be careful with `ttl　=　null`!**
 >
-> Revoked tokens are stored in Redis until they expire. But such tokens will be stored in Redis forever, which will lead to uncontrolled Redis database growth.
+> Revoked tokens are stored in Redis until they expire. Never-expiring tokens will be stored in Redis **forever**, which will lead to uncontrolled Redis database growth.
 
 Returns `Ecwt` instance.
 
 ```javascript
 // Example
-const ecwt_token = await ecwtFactory.create(
+const ecwt = await ecwtFactory.create(
     {
         user_id: 1,
         nick: 'kirick',
@@ -195,12 +195,12 @@ Returns `Ecwt` instance.
 If the token is invalid, throws `EcwtInvalidError` which contains `Ecwt` instance in the `ecwt` property.
 
 ```javascript
-const ecwt_token = await ecwtFactory.verify(token);
+const ecwt = await ecwtFactory.verify(token);
 ```
 
 ### `Ecwt`
 
-Represents the token. It cannot be created by the user.
+Represents the token. Its counstructor cannot be called by the user.
 
 ```javascript
 import { Ecwt } from 'ecwt';
