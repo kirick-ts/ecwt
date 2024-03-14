@@ -197,6 +197,30 @@ If the token is invalid, throws `EcwtInvalidError` which contains `Ecwt` instanc
 const ecwt = await ecwtFactory.verify(token);
 ```
 
+#### Class method `safeVerify`
+
+```typescript
+safeVerify(
+    token: string,
+): Promise<{
+	success: boolean,
+	ecwt: Ecwt | null,
+}>
+```
+
+The same method as `verify`, but does not throw an error if the token is invalid, expired or revoked.
+
+Property `success` is `true` if the token is valid.
+
+Property `ecwt` is `null` if the token cannot be parsed, otherwise it contains `Ecwt` instance.
+
+```javascript
+const {
+	success,
+	ecwt,
+} = await ecwtFactory.safeVerify(token);
+```
+
 ### `Ecwt`
 
 Represents the token. Its counstructor cannot be called by the user.
