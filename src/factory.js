@@ -13,6 +13,7 @@ import { Ecwt }                   from './token.js';
 import { base62 }                 from './utils/base62.js';
 import {
 	InvalidPackageInstanceError,
+	EcwtInvalidError,
 	EcwtExpiredError,
 	EcwtRevokedError,
     EcwtParseError }              from './utils/errors.js';
@@ -297,6 +298,41 @@ export class EcwtFactory {
 		}
 
 		return ecwt;
+	}
+
+	/**
+	 * Parses token without throwing errors.
+	 * @async
+	 * @param {string} token String representation of token.
+	 * @returns {Promise<{ success: boolean, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
+	 */
+	async safeVerify(token) {
+		let ecwt;
+		try {
+			ecwt = await this.verify(token);
+
+			return {
+				success: true,
+				ecwt,
+			};
+		}
+		catch (error) {
+			if (error instanceof EcwtParseError) {
+				return {
+					success: false,
+					ecwt: null,
+				};
+			}
+
+			if (error instanceof EcwtInvalidError) {
+				return {
+					success: false,
+					ecwt,
+				};
+			}
+
+			throw error;
+		}
 	}
 
 	/**

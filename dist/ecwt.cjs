@@ -33,6 +33,7 @@ __export(main_exports, {
   EcwtExpiredError: () => EcwtExpiredError,
   EcwtFactory: () => EcwtFactory,
   EcwtInvalidError: () => EcwtInvalidError,
+  EcwtParseError: () => EcwtParseError,
   EcwtRevokedError: () => EcwtRevokedError
 });
 module.exports = __toCommonJS(main_exports);
@@ -410,6 +411,36 @@ var EcwtFactory = class {
     return ecwt;
   }
   /**
+   * Parses token without throwing errors.
+   * @async
+   * @param {string} token String representation of token.
+   * @returns {Promise<{ success: boolean, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
+   */
+  async safeVerify(token) {
+    let ecwt;
+    try {
+      ecwt = await this.verify(token);
+      return {
+        success: true,
+        ecwt
+      };
+    } catch (error) {
+      if (error instanceof EcwtParseError) {
+        return {
+          success: false,
+          ecwt: null
+        };
+      }
+      if (error instanceof EcwtInvalidError) {
+        return {
+          success: false,
+          ecwt
+        };
+      }
+      throw error;
+    }
+  }
+  /**
    * Revokes token.
    * @async
    * @param {object} options -
@@ -453,5 +484,6 @@ var EcwtFactory = class {
   EcwtExpiredError,
   EcwtFactory,
   EcwtInvalidError,
+  EcwtParseError,
   EcwtRevokedError
 });

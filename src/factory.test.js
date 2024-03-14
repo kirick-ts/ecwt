@@ -13,11 +13,13 @@ import { SnowflakeFactory } from '@kirick/snowflake';
 import { LRUCache }         from 'lru-cache';
 import { createClient }     from 'redis';
 import * as v               from 'valibot';
-import { EcwtFactory }      from './factory.js';
-import { Ecwt }             from './token.js';
 import {
+	Ecwt,
+	EcwtFactory,
+	EcwtParseError,
+	EcwtInvalidError,
 	EcwtExpiredError,
-	EcwtRevokedError }      from './utils/errors.js';
+	EcwtRevokedError }      from './main.js';
 
 const redisClient = createClient({
 	socket: {
@@ -99,8 +101,19 @@ describe('create token', () => {
 		expect(
 			ecwt.getTTL(),
 		).toBe(10);
+	});
 
-		await ecwtFactory.verify(ecwt.token);
+	test('verify', async () => {
+		const promise = ecwtFactory.verify(ecwt.token);
+
+		await expect(promise).resolves.toBeInstanceOf(Ecwt);
+	});
+
+	test('safe verify', async () => {
+		const result = await ecwtFactory.safeVerify(ecwt.token);
+
+		expect(result.success).toBe(true);
+		expect(result.ecwt).toBeInstanceOf(Ecwt);
 	});
 
 	test('verify with cache', async () => {
@@ -158,6 +171,19 @@ describe('create token', () => {
 		await expect(promise).rejects.toThrow(v.ValiError);
 	});
 
+	test('verify unparsable token', async () => {
+		const promise = ecwtFactory.verify('deadbeef');
+
+		await expect(promise).rejects.toThrow(EcwtParseError);
+	});
+
+	test('safe verify unparsable token', async () => {
+		const result = await ecwtFactory.safeVerify('deadbeef');
+
+		expect(result.success).toBe(false);
+		expect(result.ecwt).toBe(null);
+	});
+
 	test('senml', async () => {
 		const ecwtFactorySenml = new EcwtFactory({
 			redisClient,
@@ -206,9 +232,9 @@ describe('token expiration', () => {
 			setTimeout(resolve, 1100);
 		});
 
-		await expect(
-			ecwtFactory.verify(ecwt.token),
-		).rejects.toThrow(EcwtExpiredError);
+		const promise = ecwtFactory.verify(ecwt.token);
+		await expect(promise).rejects.toThrow(EcwtInvalidError);
+		await expect(promise).rejects.toThrow(EcwtExpiredError);
 	});
 
 	test('without cache', async () => {
@@ -228,9 +254,9 @@ describe('token expiration', () => {
 			setTimeout(resolve, 1100);
 		});
 
-		await expect(
-			ecwtFactory.verify(ecwt.token),
-		).rejects.toThrow(EcwtExpiredError);
+		const promise = ecwtFactory.verify(ecwt.token);
+		await expect(promise).rejects.toThrow(EcwtExpiredError);
+		await expect(promise).rejects.toThrow(EcwtInvalidError);
 	});
 });
 
@@ -248,9 +274,9 @@ describe('token revocation', () => {
 
 		await ecwt.revoke();
 
-		await expect(
-			ecwtFactory.verify(ecwt.token),
-		).rejects.toThrow(EcwtRevokedError);
+		const promise = ecwtFactory.verify(ecwt.token);
+		await expect(promise).rejects.toThrow(EcwtRevokedError);
+		await expect(promise).rejects.toThrow(EcwtInvalidError);
 	});
 
 	test('without cache', async () => {
@@ -268,8 +294,8 @@ describe('token revocation', () => {
 
 		await ecwt.revoke();
 
-		await expect(
-			ecwtFactory.verify(ecwt.token),
-		).rejects.toThrow(EcwtRevokedError);
+		const promise = ecwtFactory.verify(ecwt.token);
+		await expect(promise).rejects.toThrow(EcwtRevokedError);
+		await expect(promise).rejects.toThrow(EcwtInvalidError);
 	});
 });
