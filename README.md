@@ -203,8 +203,8 @@ const ecwt = await ecwtFactory.verify(token);
 safeVerify(
     token: string,
 ): Promise<{
-	success: boolean,
-	ecwt: Ecwt | null,
+    success: boolean,
+    ecwt: Ecwt | null,
 }>
 ```
 
