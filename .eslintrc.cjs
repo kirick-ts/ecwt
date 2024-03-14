@@ -80,6 +80,7 @@ module.exports = {
 				SwitchCase: 1,
 			},
 		],
+		'jsdoc/require-jsdoc': 'error',
 		'new-cap': [
 			'error',
 			{

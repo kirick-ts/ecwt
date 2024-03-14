@@ -145,6 +145,10 @@ var Ecwt = class {
     }
     return this.#ttl_initial - toSeconds(Date.now() - this.snowflake.timestamp);
   }
+  /**
+   * Revokes token.
+   * @returns {Promise<void>} -
+   */
   /* async */
   revoke() {
     return this.#ecwtFactory._revoke({
@@ -163,6 +167,11 @@ var base62 = (0, import_base_x.default)("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabc
 var InvalidPackageInstanceError = class extends TypeError {
   constructor(property, class_name, package_name) {
     super(`Value ${property} must be an instance of ${class_name} from package "${package_name}". That error is probably caused by two separate installations of "${package_name}". Please, make sure that "${package_name}" in your project is matches "peerDependencies" of "ecwt" package.`);
+  }
+};
+var EcwtParseError = class extends Error {
+  constructor() {
+    super("Cannot parse data to Ecwt token.");
   }
 };
 var EcwtInvalidError = class extends Error {
@@ -204,8 +213,8 @@ var EcwtFactory = class {
   #snowflakeFactory;
   #redis_keys = {};
   #encryption_key;
-  #schema;
-  #schema_keys_sorted;
+  #validator;
+  #cborEncoder;
   /**
    *
    * @param {object} param0 -
@@ -215,7 +224,8 @@ var EcwtFactory = class {
    * @param {object} param0.options -
    * @param {string} [param0.options.namespace] Namespace for Redis keys.
    * @param {Buffer} param0.options.key Encryption key, 64 bytes
-   * @param {{ [key: string]: (value: any) => boolean }} param0.options.schema Schema for token data. Each property is a validator function that returns true if value is valid.
+   * @param {(value: any) => any} [param0.options.validator] Validator for token data. Should return validated value or throw an error.
+   * @param {{ [key: string]: number }} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
    */
   constructor({
     redisClient: redisClient2 = null,
@@ -224,7 +234,8 @@ var EcwtFactory = class {
     options: {
       namespace = null,
       key,
-      schema = {}
+      validator,
+      senml_key_map
     }
   }) {
     if (redisClient2 !== null && (redisClient2.constructor.name !== redis_client_constructor_name || getAllKeysList(redisClient2) !== redis_client_keys)) {
@@ -253,8 +264,12 @@ var EcwtFactory = class {
     this.#snowflakeFactory = snowflakeFactory;
     this.#redis_keys.revoked = `${REDIS_PREFIX}${namespace}:revoked`;
     this.#encryption_key = key;
-    this.#schema = schema;
-    this.#schema_keys_sorted = Object.keys(schema).sort();
+    this.#validator = validator;
+    if (senml_key_map) {
+      this.#cborEncoder = new import_cbor_x.Encoder({
+        keyMap: senml_key_map
+      });
+    }
   }
   /**
    * Creates new token.
@@ -267,24 +282,19 @@ var EcwtFactory = class {
   async create(data, {
     ttl
   } = {}) {
-    const payload = [];
-    for (const key of this.#schema_keys_sorted) {
-      const value = data[key];
-      const validator = this.#schema[key];
-      if (typeof validator === "function" && validator(value) !== true) {
-        throw new TypeError(`Value "${value}" of property "${key}" is invalid.`);
-      }
-      payload.push(value);
+    if (typeof this.#validator === "function") {
+      data = this.#validator(data);
     }
     if (typeof ttl !== "number" && Number.isNaN(ttl) !== true && ttl !== null) {
       throw new TypeError("TTL must be a number or null.");
     }
     const snowflake = await this.#snowflakeFactory.createSafe();
-    const token_raw = (0, import_cbor_x.encode)([
+    const payload = [
       snowflake.toBuffer(),
       ttl,
-      payload
-    ]);
+      data
+    ];
+    const token_raw = this.#cborEncoder ? this.#cborEncoder.encode(payload) : (0, import_cbor_x.encode)(payload);
     const token_encrypted = await import_evilcrypt.v2.encrypt(
       token_raw,
       this.#encryption_key
@@ -335,20 +345,31 @@ var EcwtFactory = class {
       const token_encrypted = Buffer.from(
         base62.decode(token)
       );
-      const token_raw = await (0, import_evilcrypt.decrypt)(
-        token_encrypted,
-        this.#encryption_key
-      );
+      let token_raw;
+      try {
+        token_raw = await (0, import_evilcrypt.decrypt)(
+          token_encrypted,
+          this.#encryption_key
+        );
+      } catch {
+        throw new EcwtParseError();
+      }
+      const payload = this.#cborEncoder ? this.#cborEncoder.decode(token_raw) : (0, import_cbor_x.decode)(token_raw);
       const [
-        snowflake_buffer,
-        _ttl_initial,
-        payload
-      ] = (0, import_cbor_x.decode)(token_raw);
+        snowflake_buffer
+      ] = payload;
+      [
+        ,
+        ttl_initial,
+        data
+      ] = payload;
       snowflake = this.#snowflakeFactory.parse(snowflake_buffer);
-      ttl_initial = _ttl_initial;
-      data = {};
-      for (const [index, key] of this.#schema_keys_sorted.entries()) {
-        data[key] = payload[index];
+      if (typeof this.#validator === "function") {
+        try {
+          data = this.#validator(data);
+        } catch {
+          throw new EcwtParseError();
+        }
       }
       this.#setCache(
         token,

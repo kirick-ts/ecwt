@@ -69,32 +69,24 @@ const lruCache = new LRUCache({
 
 #### Validation library of your choice (optional)
 
-To reduce the size of the token, ECWT does not include object keys in the payload. By specifying the schema, you also can validate the payloads.
+By specifying the schema, you also validate the payloads. Schema is a function that takes a value and returns it back or throws.
 
 In our example, we use [valibot](https://valibot.dev) library.
 
 ```javascript
-import {
-	number,
-	string,
-	maxValue,
-	maxLength,
-	safeParse } from 'valibot';
+import * as v from 'valibot';
 
-const schema = {
-    user_id: (value) => safeParse(
-        number([
-            maxValue(10),
-        ]),
-        value,
-    ).success,
-    nick: (value) => safeParse(
-        string([
-            maxLength(10),
-        ]),
-        value,
-    ).success,
-};
+const schema = (value) => v.parse(
+	v.object({
+		user_id: v.number([
+			v.maxValue(10),
+		]),
+		nick: v.string([
+			v.maxLength(10),
+		]),
+	}),
+	value,
+);
 ```
 
 That schema will prevent creating tokens for users with ID greater than 10 and nicknames longer than 10 characters.
@@ -111,14 +103,15 @@ constructor({
     options: {
         namespace: string?,
         key: Buffer,
-        schema: {
-            [key: string]: (value: any) => boolean,
-        } = {},
+        schema: (value: any) => any,
+        senmlKeyMap: {
+			[key: string]: number,
+		}?,
     },
 })
 ```
 
-Create your `EcwtFactory` instance to create, and parse tokens.
+Create your `EcwtFactory` instance to create, validate and revoke tokens.
 
 ```javascript
 import { EcwtFactory } from 'ecwt';
@@ -135,9 +128,15 @@ const ecwtFactory = new EcwtFactory({
 			'base64',
 		),
 		schema,
+		senml_key_map: {
+			user_id: 1,
+			nick: 2,
+		},
 	},
 });
 ```
+
+To reduce token size, which is especially important to reduce amount of data sent over the network, you can use `options.senml_key_map` to map keys to numbers. This way, CBOR encoder will use numbers instead of strings in object keys. You **should never change** number assigned to a key or **reassign number** to another key to avoid breaking the schema. For more information, see [RFC 8428](https://datatracker.ietf.org/doc/html/rfc8428#section-6).
 
 #### Class method `create`
 

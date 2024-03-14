@@ -5,6 +5,12 @@ export class InvalidPackageInstanceError extends TypeError {
 	}
 }
 
+export class EcwtParseError extends Error {
+	constructor() {
+		super('Cannot parse data to Ecwt token.');
+	}
+}
+
 export class EcwtInvalidError extends Error {
 	constructor(ecwt) {
 		super('Ecwt token is invalid.');

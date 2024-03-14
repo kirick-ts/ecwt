@@ -120,6 +120,10 @@ export class Ecwt {
 		return this.#ttl_initial - toSeconds(Date.now() - this.snowflake.timestamp);
 	}
 
+	/**
+	 * Revokes token.
+	 * @returns {Promise<void>} -
+	 */
 	/* async */ revoke() {
 		return this.#ecwtFactory._revoke({
 			token_id: this.id,
