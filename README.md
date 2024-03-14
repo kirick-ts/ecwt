@@ -76,7 +76,8 @@ In our example, we use [valibot](https://valibot.dev) library.
 ```javascript
 import * as v from 'valibot';
 
-const schema = (value) => v.parse(
+const schema = v.parse.bind(
+	null,
 	v.object({
 		user_id: v.number([
 			v.maxValue(10),
@@ -85,7 +86,6 @@ const schema = (value) => v.parse(
 			v.maxLength(10),
 		]),
 	}),
-	value,
 );
 ```
 
