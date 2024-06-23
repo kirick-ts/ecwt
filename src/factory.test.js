@@ -42,16 +42,19 @@ const key = Buffer.from(
 	'54RoavO+7orGGCKqLXcMwNGFGbcnSEq22f9bJX3lT9lgEPSaRAMBaEnHgMQPTPXcifFvGZmDGzOFqUMfqXsAhQ==',
 	'base64',
 );
-const validator = (value) => v.parse(
-	v.object({
-		user_id: v.number([
+
+const validator = v.parse.bind(
+	null,
+	v.strictObject({
+		user_id: v.pipe(
+			v.number(),
 			v.maxValue(10),
-		]),
-		nick: v.string([
+		),
+		nick: v.pipe(
+			v.string(),
 			v.maxLength(10),
-		]),
+		),
 	}),
-	value,
 );
 
 const ecwtFactory = new EcwtFactory({

@@ -28,7 +28,7 @@ module.exports = {
 		'node',
 	],
 	ignorePatterns: [
-		'dist/**/*',
+		'dist/',
 	],
 	rules: {
 		'array-bracket-spacing': [

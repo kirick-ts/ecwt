@@ -1,4 +1,6 @@
 
+// @ts-check
+
 import { toSeconds } from './utils/time.js';
 
 /**

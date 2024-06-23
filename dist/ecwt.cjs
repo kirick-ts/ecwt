@@ -229,17 +229,17 @@ var EcwtFactory = class {
    * @param {{ [key: string]: number }} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
    */
   constructor({
-    redisClient: redisClient2 = null,
-    lruCache = null,
+    redisClient: redisClient2,
+    lruCache,
     snowflakeFactory,
     options: {
-      namespace = null,
+      namespace,
       key,
       validator,
       senml_key_map
     }
   }) {
-    if (redisClient2 !== null && (redisClient2.constructor.name !== redis_client_constructor_name || getAllKeysList(redisClient2) !== redis_client_keys)) {
+    if (redisClient2 !== void 0 && (redisClient2.constructor.name !== redis_client_constructor_name || getAllKeysList(redisClient2) !== redis_client_keys)) {
       throw new InvalidPackageInstanceError(
         "redisClient",
         "Commander extends RedisClient",
@@ -247,7 +247,7 @@ var EcwtFactory = class {
       );
     }
     this.#redisClient = redisClient2;
-    if (lruCache !== null && lruCache instanceof import_lru_cache.LRUCache !== true) {
+    if (lruCache !== void 0 && lruCache instanceof import_lru_cache.LRUCache !== true) {
       throw new InvalidPackageInstanceError(
         "lruCache",
         "LRUCache",
@@ -277,11 +277,11 @@ var EcwtFactory = class {
    * @async
    * @param {object} data Data to be stored in token.
    * @param {object} [options] -
-   * @param {number} [options.ttl] Time to live in seconds. By default, token will never expire.
+   * @param {number | null} [options.ttl] Time to live in seconds. By default, token will never expire.
    * @returns {Promise<Ecwt>} -
    */
   async create(data, {
-    ttl
+    ttl = null
   } = {}) {
     if (typeof this.#validator === "function") {
       data = this.#validator(data);
@@ -319,6 +319,11 @@ var EcwtFactory = class {
       }
     );
   }
+  /**
+   * Sets data to cache.
+   * @param {string} token String representation of token.
+   * @param {object} data Data to be stored in cache.
+   */
   #setCache(token, data) {
     this.#lruCache?.set(
       token,
@@ -417,7 +422,7 @@ var EcwtFactory = class {
    * @returns {Promise<{ success: boolean, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
    */
   async safeVerify(token) {
-    let ecwt;
+    let ecwt = null;
     try {
       ecwt = await this.verify(token);
       return {
@@ -458,12 +463,17 @@ var EcwtFactory = class {
       ttl_initial = ttl_initial ?? Number.MAX_SAFE_INTEGER;
       const ts_ms_expired = ts_ms_created + ttl_initial * 1e3;
       if (ts_ms_expired > Date.now()) {
-        await this.#redisClient.sendCommand([
+        await this.#redisClient.MULTI().addCommand([
           "ZADD",
           this.#redis_keys.revoked,
           String(ts_ms_expired),
           token_id
-        ]);
+        ]).addCommand([
+          "ZREMRANGEBYSCORE",
+          this.#redis_keys.revoked,
+          "-inf",
+          String(Date.now())
+        ]).EXEC();
       }
     } else {
       console.warn("[ecwt] Redis client is not provided. Tokens cannot be revoked.");

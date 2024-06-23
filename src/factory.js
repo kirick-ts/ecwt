@@ -1,4 +1,6 @@
 
+// @ts-check
+
 import { SnowflakeFactory }       from '@kirick/snowflake';
 import {
 	Encoder as CborEncoder,
@@ -58,18 +60,18 @@ export class EcwtFactory {
 	 * @param {{ [key: string]: number }} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
 	 */
 	constructor({
-		redisClient = null,
-		lruCache = null,
+		redisClient,
+		lruCache,
 		snowflakeFactory,
 		options: {
-			namespace = null,
+			namespace,
 			key,
 			validator,
 			senml_key_map,
 		},
 	}) {
 		if (
-			redisClient !== null
+			redisClient !== undefined
 			&& (
 				redisClient.constructor.name !== redis_client_constructor_name
 				|| getAllKeysList(redisClient) !== redis_client_keys
@@ -84,7 +86,7 @@ export class EcwtFactory {
 		this.#redisClient = redisClient;
 
 		if (
-			lruCache !== null
+			lruCache !== undefined
 			&& lruCache instanceof LRUCache !== true
 		) {
 			throw new InvalidPackageInstanceError(
@@ -122,13 +124,13 @@ export class EcwtFactory {
 	 * @async
 	 * @param {object} data Data to be stored in token.
 	 * @param {object} [options] -
-	 * @param {number} [options.ttl] Time to live in seconds. By default, token will never expire.
+	 * @param {number | null} [options.ttl] Time to live in seconds. By default, token will never expire.
 	 * @returns {Promise<Ecwt>} -
 	 */
 	async create(
 		data,
 		{
-			ttl,
+			ttl = null,
 		} = {},
 	) {
 		if (typeof this.#validator === 'function') {
@@ -181,6 +183,11 @@ export class EcwtFactory {
 		);
 	}
 
+	/**
+	 * Sets data to cache.
+	 * @param {string} token String representation of token.
+	 * @param {object} data Data to be stored in cache.
+	 */
 	#setCache(token, data) {
 		this.#lruCache?.set(
 			token,
@@ -307,7 +314,7 @@ export class EcwtFactory {
 	 * @returns {Promise<{ success: boolean, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
 	 */
 	async safeVerify(token) {
-		let ecwt;
+		let ecwt = null;
 		try {
 			ecwt = await this.verify(token);
 
@@ -341,7 +348,7 @@ export class EcwtFactory {
 	 * @param {object} options -
 	 * @param {string} options.token_id -
 	 * @param {number} options.ts_ms_created -
-	 * @param {number} options.ttl_initial -
+	 * @param {number | null} options.ttl_initial -
 	 * @returns {Promise<void>} -
 	 */
 	async _revoke({
@@ -354,12 +361,26 @@ export class EcwtFactory {
 
 			const ts_ms_expired = ts_ms_created + (ttl_initial * 1000);
 			if (ts_ms_expired > Date.now()) {
-				await this.#redisClient.sendCommand([
-					'ZADD',
-					this.#redis_keys.revoked,
-					String(ts_ms_expired),
-					token_id,
-				]);
+				// await this.#redisClient.sendCommand([
+				// 	'ZADD',
+				// 	this.#redis_keys.revoked,
+				// 	String(ts_ms_expired),
+				// 	token_id,
+				// ]);
+				await this.#redisClient.MULTI()
+					.addCommand([
+						'ZADD',
+						this.#redis_keys.revoked,
+						String(ts_ms_expired),
+						token_id,
+					])
+					.addCommand([
+						'ZREMRANGEBYSCORE',
+						this.#redis_keys.revoked,
+						'-inf',
+						String(Date.now()),
+					])
+					.EXEC();
 			}
 		}
 		else {
