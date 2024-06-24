@@ -419,7 +419,7 @@ var EcwtFactory = class {
    * Parses token without throwing errors.
    * @async
    * @param {string} token String representation of token.
-   * @returns {Promise<{ success: boolean, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
+   * @returns {Promise<{ success: true, ecwt: Ecwt } | { success: false, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
    */
   async safeVerify(token) {
     let ecwt = null;
@@ -451,7 +451,7 @@ var EcwtFactory = class {
    * @param {object} options -
    * @param {string} options.token_id -
    * @param {number} options.ts_ms_created -
-   * @param {number} options.ttl_initial -
+   * @param {number | null} options.ttl_initial -
    * @returns {Promise<void>} -
    */
   async _revoke({

@@ -311,7 +311,7 @@ export class EcwtFactory {
 	 * Parses token without throwing errors.
 	 * @async
 	 * @param {string} token String representation of token.
-	 * @returns {Promise<{ success: boolean, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
+	 * @returns {Promise<{ success: true, ecwt: Ecwt } | { success: false, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
 	 */
 	async safeVerify(token) {
 		let ecwt = null;
