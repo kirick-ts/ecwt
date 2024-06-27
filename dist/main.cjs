@@ -51,21 +51,7 @@ function toSeconds(value) {
 }
 
 // src/token.js
-function assign(target, key, value) {
-  Object.defineProperty(
-    target,
-    key,
-    {
-      value,
-      enumerable: true,
-      writable: false,
-      configurable: false
-    }
-  );
-}
 var Ecwt = class {
-  #ecwtFactory;
-  #ttl_initial;
   /**
    * Token string representation.
    * @type {string}
@@ -96,6 +82,10 @@ var Ecwt = class {
    * @readonly
    */
   data;
+  /** @type {EcwtFactory} */
+  #ecwtFactory;
+  /** @type {number} */
+  #ttl_initial;
   /**
    * @param {EcwtFactory} ecwtFactory -
    * @param {object} options -
@@ -112,23 +102,11 @@ var Ecwt = class {
   }) {
     this.#ecwtFactory = ecwtFactory;
     this.#ttl_initial = ttl_initial;
-    assign(this, "token", token);
-    assign(
-      this,
-      "id",
-      snowflake.toBase62()
-    );
-    assign(this, "snowflake", snowflake);
-    assign(
-      this,
-      "ts_expired",
-      this.#getTimestampExpired()
-    );
-    assign(
-      this,
-      "data",
-      Object.freeze(data)
-    );
+    this.token = token;
+    this.id = snowflake.toBase62();
+    this.snowflake = snowflake;
+    this.ts_expired = this.#getTimestampExpired();
+    this.data = Object.freeze(data);
   }
   #getTimestampExpired() {
     if (this.#ttl_initial === null) {
@@ -166,6 +144,11 @@ var base62 = (0, import_base_x.default)("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabc
 
 // src/utils/errors.js
 var InvalidPackageInstanceError = class extends TypeError {
+  /**
+   * @param {string} property -
+   * @param {string} class_name -
+   * @param {string} package_name -
+   */
   constructor(property, class_name, package_name) {
     super(`Value ${property} must be an instance of ${class_name} from package "${package_name}". That error is probably caused by two separate installations of "${package_name}". Please, make sure that "${package_name}" in your project is matches "peerDependencies" of "ecwt" package.`);
   }
@@ -176,24 +159,20 @@ var EcwtParseError = class extends Error {
   }
 };
 var EcwtInvalidError = class extends Error {
+  message = "Ecwt token is invalid.";
+  /**
+   * @param {Ecwt} ecwt -
+   */
   constructor(ecwt) {
-    super("Ecwt token is invalid.");
+    super();
     this.ecwt = ecwt;
   }
 };
 var EcwtExpiredError = class extends EcwtInvalidError {
-  constructor(ecwt) {
-    super();
-    this.ecwt = ecwt;
-    this.message = "Ecwt is expired.";
-  }
+  message = "Ecwt is expired.";
 };
 var EcwtRevokedError = class extends EcwtInvalidError {
-  constructor(ecwt) {
-    super();
-    this.ecwt = ecwt;
-    this.message = "Ecwt is revoked.";
-  }
+  message = "Ecwt is revoked.";
 };
 
 // src/factory.js
@@ -212,21 +191,22 @@ var EcwtFactory = class {
   #redisClient;
   #lruCache;
   #snowflakeFactory;
-  #redis_keys = {};
+  #redis_key_revoked;
   #encryption_key;
   #validator;
-  #cborEncoder;
+  /** @type {CborEncoder | null} */
+  #cborEncoder = null;
   /**
    *
    * @param {object} param0 -
    * @param {import('redis').RedisClientType} [param0.redisClient] RedisClient instance. If not provided, tokens will not be revoked and cannot be checked for revocation.
-   * @param {LRUCache} [param0.lruCache] LRUCache instance. If not provided, tokens will be decrypted every time they are verified.
+   * @param {LRUCache<string, CacheValue>} [param0.lruCache] LRUCache instance. If not provided, tokens will be decrypted every time they are verified.
    * @param {SnowflakeFactory} param0.snowflakeFactory SnowflakeFactory instance.
    * @param {object} param0.options -
    * @param {string} [param0.options.namespace] Namespace for Redis keys.
    * @param {Buffer} param0.options.key Encryption key, 64 bytes
    * @param {(value: any) => any} [param0.options.validator] Validator for token data. Should return validated value or throw an error.
-   * @param {{ [key: string]: number }} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
+   * @param {Record<string, number>} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
    */
   constructor({
     redisClient: redisClient2,
@@ -263,7 +243,7 @@ var EcwtFactory = class {
       );
     }
     this.#snowflakeFactory = snowflakeFactory;
-    this.#redis_keys.revoked = `${REDIS_PREFIX}${namespace}:revoked`;
+    this.#redis_key_revoked = `${REDIS_PREFIX}${namespace}:revoked`;
     this.#encryption_key = key;
     this.#validator = validator;
     if (senml_key_map) {
@@ -322,14 +302,14 @@ var EcwtFactory = class {
   /**
    * Sets data to cache.
    * @param {string} token String representation of token.
-   * @param {object} data Data to be stored in cache.
+   * @param {CacheValue} cache_value Data to be stored in cache.
    */
-  #setCache(token, data) {
+  #setCache(token, cache_value) {
     this.#lruCache?.set(
       token,
-      data,
+      cache_value,
       {
-        ttl: data.ttl * 1e3
+        ttl: cache_value.ttl_initial * 1e3
       }
     );
   }
@@ -406,7 +386,7 @@ var EcwtFactory = class {
     }
     if (this.#redisClient) {
       const score = await this.#redisClient.ZSCORE(
-        this.#redis_keys.revoked,
+        this.#redis_key_revoked,
         ecwt.id
       );
       if (score !== null) {
@@ -465,12 +445,12 @@ var EcwtFactory = class {
       if (ts_ms_expired > Date.now()) {
         await this.#redisClient.MULTI().addCommand([
           "ZADD",
-          this.#redis_keys.revoked,
+          this.#redis_key_revoked,
           String(ts_ms_expired),
           token_id
         ]).addCommand([
           "ZREMRANGEBYSCORE",
-          this.#redis_keys.revoked,
+          this.#redis_key_revoked,
           "-inf",
           String(Date.now())
         ]).EXEC();

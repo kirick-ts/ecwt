@@ -1,14 +1,8 @@
 
-const {
+import {
 	describe,
 	test,
-	expect,
-} = await import(
-	'Bun' in globalThis
-		? 'bun:test'
-		: 'vitest'
-);
-
+	expect }                from 'vitest';
 import { SnowflakeFactory } from '@kirick/snowflake';
 import { LRUCache }         from 'lru-cache';
 import { createClient }     from 'redis';
@@ -24,7 +18,7 @@ import {
 const redisClient = createClient({
 	socket: {
 		host: 'localhost',
-		port: 16274,
+		port: process.env.REDIS_PORT,
 	},
 });
 await redisClient.connect();

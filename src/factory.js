@@ -1,5 +1,13 @@
 
-// @ts-check
+/**
+ * @typedef {import('@kirick/snowflake').Snowflake} Snowflake
+ */
+/**
+ * @typedef {object} CacheValue
+ * @property {Snowflake} snowflake -
+ * @property {number} ttl_initial -
+ * @property {Record<string, any>} data -
+ */
 
 import { SnowflakeFactory }       from '@kirick/snowflake';
 import {
@@ -22,7 +30,10 @@ import {
 
 const REDIS_PREFIX = '@ecwt:';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+/**
+ * @param {object} value -
+ * @returns {string} -
+ */
 function getAllKeysList(value) {
 	const keys = [];
 	// eslint-disable-next-line guard-for-in
@@ -41,23 +52,24 @@ export class EcwtFactory {
 	#lruCache;
 	#snowflakeFactory;
 
-	#redis_keys = {};
+	#redis_key_revoked;
 	#encryption_key;
 
 	#validator;
-	#cborEncoder;
+	/** @type {CborEncoder | null} */
+	#cborEncoder = null;
 
 	/**
 	 *
 	 * @param {object} param0 -
 	 * @param {import('redis').RedisClientType} [param0.redisClient] RedisClient instance. If not provided, tokens will not be revoked and cannot be checked for revocation.
-	 * @param {LRUCache} [param0.lruCache] LRUCache instance. If not provided, tokens will be decrypted every time they are verified.
+	 * @param {LRUCache<string, CacheValue>} [param0.lruCache] LRUCache instance. If not provided, tokens will be decrypted every time they are verified.
 	 * @param {SnowflakeFactory} param0.snowflakeFactory SnowflakeFactory instance.
 	 * @param {object} param0.options -
 	 * @param {string} [param0.options.namespace] Namespace for Redis keys.
 	 * @param {Buffer} param0.options.key Encryption key, 64 bytes
 	 * @param {(value: any) => any} [param0.options.validator] Validator for token data. Should return validated value or throw an error.
-	 * @param {{ [key: string]: number }} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
+	 * @param {Record<string, number>} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
 	 */
 	constructor({
 		redisClient,
@@ -106,7 +118,7 @@ export class EcwtFactory {
 		}
 		this.#snowflakeFactory = snowflakeFactory;
 
-		this.#redis_keys.revoked = `${REDIS_PREFIX}${namespace}:revoked`;
+		this.#redis_key_revoked = `${REDIS_PREFIX}${namespace}:revoked`;
 
 		this.#encryption_key = key;
 
@@ -186,14 +198,14 @@ export class EcwtFactory {
 	/**
 	 * Sets data to cache.
 	 * @param {string} token String representation of token.
-	 * @param {object} data Data to be stored in cache.
+	 * @param {CacheValue} cache_value Data to be stored in cache.
 	 */
-	#setCache(token, data) {
+	#setCache(token, cache_value) {
 		this.#lruCache?.set(
 			token,
-			data,
+			cache_value,
 			{
-				ttl: data.ttl * 1000,
+				ttl: cache_value.ttl_initial * 1000,
 			},
 		);
 	}
@@ -296,7 +308,7 @@ export class EcwtFactory {
 
 		if (this.#redisClient) {
 			const score = await this.#redisClient.ZSCORE(
-				this.#redis_keys.revoked,
+				this.#redis_key_revoked,
 				ecwt.id,
 			);
 			if (score !== null) {
@@ -370,13 +382,13 @@ export class EcwtFactory {
 				await this.#redisClient.MULTI()
 					.addCommand([
 						'ZADD',
-						this.#redis_keys.revoked,
+						this.#redis_key_revoked,
 						String(ts_ms_expired),
 						token_id,
 					])
 					.addCommand([
 						'ZREMRANGEBYSCORE',
-						this.#redis_keys.revoked,
+						this.#redis_key_revoked,
 						'-inf',
 						String(Date.now()),
 					])

@@ -1,6 +1,4 @@
 
-// @ts-check
-
 import { toSeconds } from './utils/time.js';
 
 /**
@@ -8,29 +6,7 @@ import { toSeconds } from './utils/time.js';
  * @typedef {import('./factory.js').EcwtFactory} EcwtFactory
  */
 
-/**
- * Assigns property to object.
- * @param {object} target -
- * @param {string} key -
- * @param {any} value -
- */
-function assign(target, key, value) {
-	Object.defineProperty(
-		target,
-		key,
-		{
-			value,
-			enumerable: true,
-			writable: false,
-			configurable: false,
-		},
-	);
-}
-
 export class Ecwt {
-	#ecwtFactory;
-	#ttl_initial;
-
 	/**
 	 * Token string representation.
 	 * @type {string}
@@ -62,6 +38,11 @@ export class Ecwt {
 	 */
 	data;
 
+	/** @type {EcwtFactory} */
+	#ecwtFactory;
+	/** @type {number} */
+	#ttl_initial;
+
 	/**
 	 * @param {EcwtFactory} ecwtFactory -
 	 * @param {object} options -
@@ -80,26 +61,13 @@ export class Ecwt {
 		},
 	) {
 		this.#ecwtFactory = ecwtFactory;
-
 		this.#ttl_initial = ttl_initial;
 
-		assign(this, 'token', token);
-		assign(
-			this,
-			'id',
-			snowflake.toBase62(),
-		);
-		assign(this, 'snowflake', snowflake);
-		assign(
-			this,
-			'ts_expired',
-			this.#getTimestampExpired(),
-		);
-		assign(
-			this,
-			'data',
-			Object.freeze(data),
-		);
+		this.token = token;
+		this.id = snowflake.toBase62();
+		this.snowflake = snowflake;
+		this.ts_expired = this.#getTimestampExpired();
+		this.data = Object.freeze(data);
 	}
 
 	#getTimestampExpired() {

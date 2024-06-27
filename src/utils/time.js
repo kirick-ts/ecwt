@@ -1,6 +1,4 @@
 
-// @ts-check
-
 /**
  * Convert timestamp in seconds to milliseconds.
  * @param {*} value Timestamp in milliseconds.
