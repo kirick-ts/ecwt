@@ -1,8 +1,10 @@
-export class EcwtFactory {
+/**
+ * @template {Record<string, any>} [D=Record<string, any>]
+ */
+export class EcwtFactory<D extends Record<string, any> = Record<string, any>> {
     /**
-     *
      * @param {object} param0 -
-     * @param {import('redis').RedisClientType} [param0.redisClient] RedisClient instance. If not provided, tokens will not be revoked and cannot be checked for revocation.
+     * @param {import('redis').RedisClientType<import('redis').RedisModules, import('redis').RedisFunctions, import('redis').RedisScripts>} [param0.redisClient] RedisClient instance. If not provided, tokens will not be revoked and cannot be checked for revocation.
      * @param {LRUCache<string, CacheValue>} [param0.lruCache] LRUCache instance. If not provided, tokens will be decrypted every time they are verified.
      * @param {SnowflakeFactory} param0.snowflakeFactory SnowflakeFactory instance.
      * @param {object} param0.options -
@@ -12,27 +14,27 @@ export class EcwtFactory {
      * @param {Record<string, number>} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
      */
     constructor({ redisClient, lruCache, snowflakeFactory, options: { namespace, key, validator, senml_key_map, }, }: {
-        redisClient?: import("redis").RedisClientType;
-        lruCache?: LRUCache<string, CacheValue>;
+        redisClient?: import("redis").RedisClientType<import("redis").RedisModules, import("redis").RedisFunctions, import("redis").RedisScripts> | undefined;
+        lruCache?: LRUCache<string, CacheValue, any> | undefined;
         snowflakeFactory: SnowflakeFactory;
         options: {
-            namespace?: string;
+            namespace?: string | undefined;
             key: Buffer;
-            validator?: (value: any) => any;
-            senml_key_map?: Record<string, number>;
+            validator?: ((value: any) => any) | undefined;
+            senml_key_map?: Record<string, number> | undefined;
         };
     });
     /**
      * Creates new token.
      * @async
-     * @param {object} data Data to be stored in token.
+     * @param {D} data Data to be stored in token.
      * @param {object} [options] -
      * @param {number | null} [options.ttl] Time to live in seconds. By default, token will never expire.
      * @returns {Promise<Ecwt>} -
      */
-    create(data: object, { ttl, }?: {
-        ttl?: number | null;
-    }): Promise<Ecwt>;
+    create(data: D, { ttl, }?: {
+        ttl?: number | null | undefined;
+    } | undefined): Promise<Ecwt>;
     /**
      * Parses token.
      * @async
@@ -84,7 +86,7 @@ export type CacheValue = {
     /**
      * -
      */
-    ttl_initial: number;
+    ttl_initial: number | null;
     /**
      * -
      */

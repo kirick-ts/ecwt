@@ -23,7 +23,7 @@ export class EcwtInvalidError extends Error {
      * @param {Ecwt} ecwt -
      */
     constructor(ecwt: Ecwt);
-    ecwt: import("../token.js").Ecwt;
+    ecwt: import("../token.js").Ecwt<Record<string, any>>;
 }
 /**
  * Error thrown when parsed Ecwt is expired.

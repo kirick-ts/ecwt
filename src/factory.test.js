@@ -15,14 +15,16 @@ import {
 	EcwtExpiredError,
 	EcwtRevokedError }      from './main.js';
 
+/** @type {import('redis').RedisClientType<import('redis').RedisModules, import('redis').RedisFunctions, import('redis').RedisScripts>} */
 const redisClient = createClient({
 	socket: {
 		host: 'localhost',
-		port: process.env.REDIS_PORT,
+		port: Number.parseInt(process.env.REDIS_PORT ?? '16379'),
 	},
 });
 await redisClient.connect();
 
+/** @type {LRUCache<string, import('./factory.js').CacheValue>} */
 const lruCache = new LRUCache({
 	max: 100,
 });
@@ -37,20 +39,23 @@ const key = Buffer.from(
 	'base64',
 );
 
+const ValiDataSchema = v.strictObject({
+	user_id: v.pipe(
+		v.number(),
+		v.maxValue(10),
+	),
+	nick: v.pipe(
+		v.string(),
+		v.maxLength(10),
+	),
+});
+
 const validator = v.parse.bind(
 	null,
-	v.strictObject({
-		user_id: v.pipe(
-			v.number(),
-			v.maxValue(10),
-		),
-		nick: v.pipe(
-			v.string(),
-			v.maxLength(10),
-		),
-	}),
+	ValiDataSchema,
 );
 
+/** @type {EcwtFactory<v.InferOutput<typeof ValiDataSchema>>} */
 const ecwtFactory = new EcwtFactory({
 	redisClient,
 	lruCache,
@@ -76,6 +81,7 @@ async function measureTime(fn) {
 }
 
 describe('create token', () => {
+	/** @type {Ecwt | undefined} */
 	let ecwt;
 
 	test('create', async () => {
@@ -101,12 +107,20 @@ describe('create token', () => {
 	});
 
 	test('verify', async () => {
+		if (!ecwt) {
+			expect.unreachable();
+		}
+
 		const promise = ecwtFactory.verify(ecwt.token);
 
 		await expect(promise).resolves.toBeInstanceOf(Ecwt);
 	});
 
 	test('safe verify', async () => {
+		if (!ecwt) {
+			expect.unreachable();
+		}
+
 		const result = await ecwtFactory.safeVerify(ecwt.token);
 
 		expect(result.success).toBe(true);
@@ -114,6 +128,10 @@ describe('create token', () => {
 	});
 
 	test('verify with cache', async () => {
+		if (!ecwt) {
+			expect.unreachable();
+		}
+
 		const ecwt_verified = await ecwtFactory.verify(ecwt.token);
 
 		expect(ecwt).toBeInstanceOf(Ecwt);
@@ -125,6 +143,11 @@ describe('create token', () => {
 	});
 
 	test('verify without cache', async () => {
+		if (!ecwt) {
+			expect.unreachable();
+		}
+
+		// @ts-ignore
 		ecwtFactory._purgeCache();
 
 		const ecwt_verified = await ecwtFactory.verify(ecwt.token);
@@ -138,15 +161,22 @@ describe('create token', () => {
 	});
 
 	test('cache usage', async () => {
+		if (!ecwt) {
+			expect.unreachable();
+		}
+
+		const _ecwt = ecwt;
+
+		// @ts-ignore
 		ecwtFactory._purgeCache();
 
 		const time_no_cache = await measureTime(async () => {
-			await ecwtFactory.verify(ecwt.token);
+			await ecwtFactory.verify(_ecwt.token);
 		});
 		// console.log('time_no_cache', time_no_cache);
 
 		const time_with_cache = await measureTime(async () => {
-			await ecwtFactory.verify(ecwt.token);
+			await ecwtFactory.verify(_ecwt.token);
 		});
 		// console.log('time_with_cache', time_with_cache);
 
@@ -182,6 +212,11 @@ describe('create token', () => {
 	});
 
 	test('senml', async () => {
+		if (!ecwt) {
+			expect.unreachable();
+		}
+
+		/** @type {EcwtFactory<v.InferOutput<typeof ValiDataSchema>>} */
 		const ecwtFactorySenml = new EcwtFactory({
 			redisClient,
 			lruCache,
@@ -245,6 +280,7 @@ describe('token expiration', () => {
 			},
 		);
 
+		// @ts-ignore
 		ecwtFactory._purgeCache();
 
 		await new Promise((resolve) => {
@@ -287,6 +323,7 @@ describe('token revocation', () => {
 			},
 		);
 
+		// @ts-ignore
 		ecwtFactory._purgeCache();
 
 		await ecwt.revoke();

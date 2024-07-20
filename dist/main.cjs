@@ -1,3 +1,4 @@
+"use strict";
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -78,21 +79,21 @@ var Ecwt = class {
   ts_expired;
   /**
    * Data stored in token.
-   * @type {{ [key: string]: any }}
+   * @type {D}
    * @readonly
    */
   data;
   /** @type {EcwtFactory} */
   #ecwtFactory;
-  /** @type {number} */
+  /** @type {number | null} */
   #ttl_initial;
   /**
    * @param {EcwtFactory} ecwtFactory -
    * @param {object} options -
    * @param {string} options.token String representation of token.
    * @param {Snowflake} options.snowflake -
-   * @param {number?} options.ttl_initial Time to live in seconds at the moment of token creation.
-   * @param {object} options.data Data stored in token.
+   * @param {number | null} options.ttl_initial Time to live in seconds at the moment of token creation.
+   * @param {D} options.data Data stored in token.
    */
   constructor(ecwtFactory, {
     token,
@@ -197,9 +198,8 @@ var EcwtFactory = class {
   /** @type {CborEncoder | null} */
   #cborEncoder = null;
   /**
-   *
    * @param {object} param0 -
-   * @param {import('redis').RedisClientType} [param0.redisClient] RedisClient instance. If not provided, tokens will not be revoked and cannot be checked for revocation.
+   * @param {import('redis').RedisClientType<import('redis').RedisModules, import('redis').RedisFunctions, import('redis').RedisScripts>} [param0.redisClient] RedisClient instance. If not provided, tokens will not be revoked and cannot be checked for revocation.
    * @param {LRUCache<string, CacheValue>} [param0.lruCache] LRUCache instance. If not provided, tokens will be decrypted every time they are verified.
    * @param {SnowflakeFactory} param0.snowflakeFactory SnowflakeFactory instance.
    * @param {object} param0.options -
@@ -255,7 +255,7 @@ var EcwtFactory = class {
   /**
    * Creates new token.
    * @async
-   * @param {object} data Data to be stored in token.
+   * @param {D} data Data to be stored in token.
    * @param {object} [options] -
    * @param {number | null} [options.ttl] Time to live in seconds. By default, token will never expire.
    * @returns {Promise<Ecwt>} -
@@ -308,7 +308,7 @@ var EcwtFactory = class {
     this.#lruCache?.set(
       token,
       cache_value,
-      {
+      cache_value.ttl_initial === null ? void 0 : {
         ttl: cache_value.ttl_initial * 1e3
       }
     );

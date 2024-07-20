@@ -1,19 +1,19 @@
 {
 	"compilerOptions": {
+		"outDir": "./dist/",
 		"target": "esnext",
 		"module": "esnext",
-		"noImplicitAny": true,
 		"checkJs": true,
 		"allowJs": true,
 		"moduleResolution": "node",
-		"allowSyntheticDefaultImports": true
+		"allowSyntheticDefaultImports": true,
+		"strict": true
 	},
 	"include": [
 		"src/**/*"
 	],
 	"exclude": [
 		"node_modules/",
-		"dist/",
-		"**/*.test.js"
+		"dist/"
 	]
 }

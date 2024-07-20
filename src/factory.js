@@ -5,7 +5,7 @@
 /**
  * @typedef {object} CacheValue
  * @property {Snowflake} snowflake -
- * @property {number} ttl_initial -
+ * @property {number | null} ttl_initial -
  * @property {Record<string, any>} data -
  */
 
@@ -47,6 +47,9 @@ const redisClient = createClient();
 const redis_client_constructor_name = redisClient.constructor.name;
 const redis_client_keys = getAllKeysList(redisClient);
 
+/**
+ * @template {Record<string, any>} [D=Record<string, any>]
+ */
 export class EcwtFactory {
 	#redisClient;
 	#lruCache;
@@ -60,9 +63,8 @@ export class EcwtFactory {
 	#cborEncoder = null;
 
 	/**
-	 *
 	 * @param {object} param0 -
-	 * @param {import('redis').RedisClientType} [param0.redisClient] RedisClient instance. If not provided, tokens will not be revoked and cannot be checked for revocation.
+	 * @param {import('redis').RedisClientType<import('redis').RedisModules, import('redis').RedisFunctions, import('redis').RedisScripts>} [param0.redisClient] RedisClient instance. If not provided, tokens will not be revoked and cannot be checked for revocation.
 	 * @param {LRUCache<string, CacheValue>} [param0.lruCache] LRUCache instance. If not provided, tokens will be decrypted every time they are verified.
 	 * @param {SnowflakeFactory} param0.snowflakeFactory SnowflakeFactory instance.
 	 * @param {object} param0.options -
@@ -134,7 +136,7 @@ export class EcwtFactory {
 	/**
 	 * Creates new token.
 	 * @async
-	 * @param {object} data Data to be stored in token.
+	 * @param {D} data Data to be stored in token.
 	 * @param {object} [options] -
 	 * @param {number | null} [options.ttl] Time to live in seconds. By default, token will never expire.
 	 * @returns {Promise<Ecwt>} -
@@ -204,9 +206,11 @@ export class EcwtFactory {
 		this.#lruCache?.set(
 			token,
 			cache_value,
-			{
-				ttl: cache_value.ttl_initial * 1000,
-			},
+			cache_value.ttl_initial === null
+				? undefined
+				: {
+					ttl: cache_value.ttl_initial * 1000,
+				},
 		);
 	}
 

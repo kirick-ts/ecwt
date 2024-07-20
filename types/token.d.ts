@@ -2,20 +2,23 @@
  * @typedef {import('@kirick/snowflake').Snowflake} Snowflake
  * @typedef {import('./factory.js').EcwtFactory} EcwtFactory
  */
-export class Ecwt {
+/**
+ * @template {Record<string, any>} [D=Record<string, any>]
+ */
+export class Ecwt<D extends Record<string, any> = Record<string, any>> {
     /**
      * @param {EcwtFactory} ecwtFactory -
      * @param {object} options -
      * @param {string} options.token String representation of token.
      * @param {Snowflake} options.snowflake -
-     * @param {number?} options.ttl_initial Time to live in seconds at the moment of token creation.
-     * @param {object} options.data Data stored in token.
+     * @param {number | null} options.ttl_initial Time to live in seconds at the moment of token creation.
+     * @param {D} options.data Data stored in token.
      */
     constructor(ecwtFactory: EcwtFactory, { token, snowflake, ttl_initial, data, }: {
         token: string;
         snowflake: Snowflake;
         ttl_initial: number | null;
-        data: object;
+        data: D;
     });
     /**
      * Token string representation.
@@ -43,12 +46,10 @@ export class Ecwt {
     readonly ts_expired: number | null;
     /**
      * Data stored in token.
-     * @type {{ [key: string]: any }}
+     * @type {D}
      * @readonly
      */
-    readonly data: {
-        [key: string]: any;
-    };
+    readonly data: D;
     /**
      * Actual time to live in seconds.
      * @returns {number | null} -

@@ -6,6 +6,9 @@ import { toSeconds } from './utils/time.js';
  * @typedef {import('./factory.js').EcwtFactory} EcwtFactory
  */
 
+/**
+ * @template {Record<string, any>} [D=Record<string, any>]
+ */
 export class Ecwt {
 	/**
 	 * Token string representation.
@@ -33,14 +36,14 @@ export class Ecwt {
 	ts_expired;
 	/**
 	 * Data stored in token.
-	 * @type {{ [key: string]: any }}
+	 * @type {D}
 	 * @readonly
 	 */
 	data;
 
 	/** @type {EcwtFactory} */
 	#ecwtFactory;
-	/** @type {number} */
+	/** @type {number | null} */
 	#ttl_initial;
 
 	/**
@@ -48,8 +51,8 @@ export class Ecwt {
 	 * @param {object} options -
 	 * @param {string} options.token String representation of token.
 	 * @param {Snowflake} options.snowflake -
-	 * @param {number?} options.ttl_initial Time to live in seconds at the moment of token creation.
-	 * @param {object} options.data Data stored in token.
+	 * @param {number | null} options.ttl_initial Time to live in seconds at the moment of token creation.
+	 * @param {D} options.data Data stored in token.
 	 */
 	constructor(
 		ecwtFactory,
