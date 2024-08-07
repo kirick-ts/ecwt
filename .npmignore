@@ -1,3 +1,13 @@
+# ignore tests
+**/*.test.*
+**/*.test.d.ts
+test/
 
-.eslintrc.cjs
-**/*.test.js
+# ignore configs
+.luarc.json
+eslint.config.{js,mjs,cjs}
+tsconfig.json
+
+# ignore IDE files
+.idea
+.nova

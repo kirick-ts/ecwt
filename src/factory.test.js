@@ -1,19 +1,21 @@
 
-import {
-	describe,
-	test,
-	expect }                from 'vitest';
 import { SnowflakeFactory } from '@kirick/snowflake';
 import { LRUCache }         from 'lru-cache';
 import { createClient }     from 'redis';
 import * as v               from 'valibot';
+import {
+	describe,
+	test,
+	expect,
+}                           from 'vitest';
 import {
 	Ecwt,
 	EcwtFactory,
 	EcwtParseError,
 	EcwtInvalidError,
 	EcwtExpiredError,
-	EcwtRevokedError }      from './main.js';
+	EcwtRevokedError,
+}                           from './main.js';
 
 /** @type {import('redis').RedisClientType<import('redis').RedisModules, import('redis').RedisFunctions, import('redis').RedisScripts>} */
 const redisClient = createClient({

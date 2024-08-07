@@ -44,7 +44,6 @@ var import_snowflake = require("@kirick/snowflake");
 var import_cbor_x = require("cbor-x");
 var import_evilcrypt = require("evilcrypt");
 var import_lru_cache = require("lru-cache");
-var import_redis = require("redis");
 
 // src/utils/time.js
 function toSeconds(value) {
@@ -151,7 +150,9 @@ var InvalidPackageInstanceError = class extends TypeError {
    * @param {string} package_name -
    */
   constructor(property, class_name, package_name) {
-    super(`Value ${property} must be an instance of ${class_name} from package "${package_name}". That error is probably caused by two separate installations of "${package_name}". Please, make sure that "${package_name}" in your project is matches "peerDependencies" of "ecwt" package.`);
+    super(
+      `Value ${property} must be an instance of ${class_name} from package "${package_name}". That error is probably caused by two separate installations of "${package_name}". Please, make sure that "${package_name}" in your project is matches "peerDependencies" of "ecwt" package.`
+    );
   }
 };
 var EcwtParseError = class extends Error {
@@ -178,16 +179,6 @@ var EcwtRevokedError = class extends EcwtInvalidError {
 
 // src/factory.js
 var REDIS_PREFIX = "@ecwt:";
-function getAllKeysList(value) {
-  const keys = [];
-  for (const key in value) {
-    keys.push(key);
-  }
-  return keys.sort().join(",");
-}
-var redisClient = (0, import_redis.createClient)();
-var redis_client_constructor_name = redisClient.constructor.name;
-var redis_client_keys = getAllKeysList(redisClient);
 var EcwtFactory = class {
   #redisClient;
   #lruCache;
@@ -209,7 +200,7 @@ var EcwtFactory = class {
    * @param {Record<string, number>} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
    */
   constructor({
-    redisClient: redisClient2,
+    redisClient,
     lruCache,
     snowflakeFactory,
     options: {
@@ -219,14 +210,7 @@ var EcwtFactory = class {
       senml_key_map
     }
   }) {
-    if (redisClient2 !== void 0 && (redisClient2.constructor.name !== redis_client_constructor_name || getAllKeysList(redisClient2) !== redis_client_keys)) {
-      throw new InvalidPackageInstanceError(
-        "redisClient",
-        "Commander extends RedisClient",
-        "redis"
-      );
-    }
-    this.#redisClient = redisClient2;
+    this.#redisClient = redisClient;
     if (lruCache !== void 0 && lruCache instanceof import_lru_cache.LRUCache !== true) {
       throw new InvalidPackageInstanceError(
         "lruCache",
@@ -341,9 +325,7 @@ var EcwtFactory = class {
         throw new EcwtParseError();
       }
       const payload = this.#cborEncoder ? this.#cborEncoder.decode(token_raw) : (0, import_cbor_x.decode)(token_raw);
-      const [
-        snowflake_buffer
-      ] = payload;
+      const [snowflake_buffer] = payload;
       [
         ,
         ttl_initial,
@@ -440,7 +422,7 @@ var EcwtFactory = class {
     ttl_initial
   }) {
     if (this.#redisClient) {
-      ttl_initial = ttl_initial ?? Number.MAX_SAFE_INTEGER;
+      ttl_initial ??= Number.MAX_SAFE_INTEGER;
       const ts_ms_expired = ts_ms_created + ttl_initial * 1e3;
       if (ts_ms_expired > Date.now()) {
         await this.#redisClient.MULTI().addCommand([

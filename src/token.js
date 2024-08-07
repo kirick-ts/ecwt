@@ -40,7 +40,6 @@ export class Ecwt {
 	 * @readonly
 	 */
 	data;
-
 	/** @type {EcwtFactory} */
 	#ecwtFactory;
 	/** @type {number | null} */

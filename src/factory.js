@@ -13,12 +13,13 @@ import { SnowflakeFactory }       from '@kirick/snowflake';
 import {
 	Encoder as CborEncoder,
 	encode as cborEncode,
-	decode as cborDecode }        from 'cbor-x';
+	decode as cborDecode,
+}                                 from 'cbor-x';
 import {
 	decrypt as evilcryptDecrypt,
-	v2 as evilcryptV2          }  from 'evilcrypt';
+	v2 as evilcryptV2,
+}                                 from 'evilcrypt';
 import { LRUCache }               from 'lru-cache';
-import { createClient }           from 'redis';
 import { Ecwt }                   from './token.js';
 import { base62 }                 from './utils/base62.js';
 import {
@@ -26,26 +27,10 @@ import {
 	EcwtInvalidError,
 	EcwtExpiredError,
 	EcwtRevokedError,
-    EcwtParseError }              from './utils/errors.js';
+    EcwtParseError,
+}                                 from './utils/errors.js';
 
 const REDIS_PREFIX = '@ecwt:';
-
-/**
- * @param {object} value -
- * @returns {string} -
- */
-function getAllKeysList(value) {
-	const keys = [];
-	// eslint-disable-next-line guard-for-in
-	for (const key in value) {
-		keys.push(key);
-	}
-	return keys.sort().join(',');
-}
-
-const redisClient = createClient();
-const redis_client_constructor_name = redisClient.constructor.name;
-const redis_client_keys = getAllKeysList(redisClient);
 
 /**
  * @template {Record<string, any>} [D=Record<string, any>]
@@ -54,10 +39,8 @@ export class EcwtFactory {
 	#redisClient;
 	#lruCache;
 	#snowflakeFactory;
-
 	#redis_key_revoked;
 	#encryption_key;
-
 	#validator;
 	/** @type {CborEncoder | null} */
 	#cborEncoder = null;
@@ -84,19 +67,6 @@ export class EcwtFactory {
 			senml_key_map,
 		},
 	}) {
-		if (
-			redisClient !== undefined
-			&& (
-				redisClient.constructor.name !== redis_client_constructor_name
-				|| getAllKeysList(redisClient) !== redis_client_keys
-			)
-		) {
-			throw new InvalidPackageInstanceError(
-				'redisClient',
-				'Commander extends RedisClient',
-				'redis',
-			);
-		}
 		this.#redisClient = redisClient;
 
 		if (
@@ -109,6 +79,7 @@ export class EcwtFactory {
 				'lru-cache',
 			);
 		}
+
 		this.#lruCache = lruCache;
 
 		if (snowflakeFactory instanceof SnowflakeFactory !== true) {
@@ -118,6 +89,7 @@ export class EcwtFactory {
 				'@kirick/snowflake',
 			);
 		}
+
 		this.#snowflakeFactory = snowflakeFactory;
 
 		this.#redis_key_revoked = `${REDIS_PREFIX}${namespace}:revoked`;
@@ -251,9 +223,7 @@ export class EcwtFactory {
 				? this.#cborEncoder.decode(token_raw)
 				: cborDecode(token_raw);
 
-			const [
-				snowflake_buffer,
-			] = payload;
+			const [ snowflake_buffer ] = payload;
 			[
 				,
 				ttl_initial,
@@ -373,7 +343,7 @@ export class EcwtFactory {
 		ttl_initial,
 	}) {
 		if (this.#redisClient) {
-			ttl_initial = ttl_initial ?? Number.MAX_SAFE_INTEGER;
+			ttl_initial ??= Number.MAX_SAFE_INTEGER;
 
 			const ts_ms_expired = ts_ms_created + (ttl_initial * 1000);
 			if (ts_ms_expired > Date.now()) {
