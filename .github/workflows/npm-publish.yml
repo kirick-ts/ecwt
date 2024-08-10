@@ -1,0 +1,20 @@
+name: Publish NPM Package
+
+on:
+  - push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kirick13/build-npm-package-action@a1fab7c7dfd9f143bc1f53357006c32ae95b38e2
+        with:
+          npm-token: ${{ secrets.NPM_TOKEN }}
+      - uses: kirick13/notify-action@v1
+        with:
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
