@@ -37,7 +37,7 @@
 		"build:types": "rm -rf dist/esm dist/types ; bunx tsc --emitDeclarationOnly && rm dist/**/*.test.d.ts",
 		"lint": "eslint . && bunx tsc --skipLibCheck --noemit",
 		"publish:npm": "bun run build && bun run lint && bun run test && npm publish",
-		"redis:up": "docker ps | grep test-redis >/dev/null || docker run --rm -d -p $REDIS_PORT:6379 --name test-redis redis:7-alpine",
+		"redis:up": "docker ps | grep test-redis >/dev/null || docker run --rm -d -p 16379:6379 --name test-redis redis:7-alpine",
 		"test": "bun run redis:up && npm run test:vitest && bun test --coverage",
 		"test:vitest": "vitest run --no-file-parallelism"
 	},
