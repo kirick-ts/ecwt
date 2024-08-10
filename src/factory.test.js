@@ -1,4 +1,8 @@
 
+/**
+ * @import { RedisClientType, RedisModules, RedisFunctions, RedisScripts } from 'redis';
+ */
+
 import { SnowflakeFactory } from '@kirick/snowflake';
 import { LRUCache }         from 'lru-cache';
 import { createClient }     from 'redis';
@@ -17,7 +21,7 @@ import {
 	EcwtRevokedError,
 }                           from './main.js';
 
-/** @type {import('redis').RedisClientType<import('redis').RedisModules, import('redis').RedisFunctions, import('redis').RedisScripts>} */
+/** @type {RedisClientType<RedisModules, RedisFunctions, RedisScripts>} */
 const redisClient = createClient({
 	socket: {
 		host: 'localhost',
@@ -52,8 +56,7 @@ const ValiDataSchema = v.strictObject({
 	),
 });
 
-const validator = v.parse.bind(
-	null,
+const validator = v.parser(
 	ValiDataSchema,
 );
 

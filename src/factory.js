@@ -53,7 +53,7 @@ export class EcwtFactory {
 	 * @param {object} param0.options -
 	 * @param {string} [param0.options.namespace] Namespace for Redis keys.
 	 * @param {Buffer} param0.options.key Encryption key, 64 bytes
-	 * @param {(value: any) => any} [param0.options.validator] Validator for token data. Should return validated value or throw an error.
+	 * @param {(value: unknown) => D} [param0.options.validator] Validator for token data. Should return validated value or throw an error.
 	 * @param {Record<string, number>} [param0.options.senml_key_map] Payload object keys mapped for their SenML keys.
 	 */
 	constructor({

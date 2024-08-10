@@ -1,6 +1,6 @@
 {
 	"name": "ecwt",
-	"version": "0.2.1-beta.3",
+	"version": "0.2.1-beta.4",
 	"description": "Encrypted CBOR-encoded Web Token",
 	"type": "module",
 	"main": "src/main.js",
@@ -25,20 +25,20 @@
 		"redis": "^4"
 	},
 	"devDependencies": {
-		"@kirick/eslint-config": "^0.1.11",
-		"@types/node": "^20.14.9",
+		"@kirick/eslint-config": "^0.1.21",
+		"@types/node": "^22.2",
 		"eslint": "9.8.0",
-		"valibot": "^0.33",
+		"valibot": "^0.37",
 		"vitest": "^1.6"
 	},
 	"scripts": {
 		"build": "bun run build:types && bun run build:cjs",
 		"build:cjs": "bunx esbuild --bundle --platform=node --format=cjs --packages=external --outfile=dist/main.cjs src/main.js",
-		"build:types": "bunx tsc --skipLibCheck --declaration --emitDeclarationOnly --outDir dist/types",
+		"build:types": "rm -rf dist/esm dist/types ; bunx tsc --emitDeclarationOnly && rm dist/**/*.test.d.ts",
 		"lint": "eslint . && bunx tsc --skipLibCheck --noemit",
 		"publish:npm": "bun run build && bun run lint && bun run test && npm publish",
 		"redis:up": "docker ps | grep test-redis >/dev/null || docker run --rm -d -p $REDIS_PORT:6379 --name test-redis redis:7-alpine",
-		"test": "export REDIS_PORT=16379 ; bun run redis:up && npm run test:vitest && bun test --coverage",
+		"test": "bun run redis:up && npm run test:vitest && bun test --coverage",
 		"test:vitest": "vitest run --no-file-parallelism"
 	},
 	"repository": {
