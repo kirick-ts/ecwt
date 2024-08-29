@@ -111,7 +111,7 @@ export class EcwtFactory {
 	 * @param {D} data Data to be stored in token.
 	 * @param {object} [options] -
 	 * @param {number | null} [options.ttl] Time to live in seconds. By default, token will never expire.
-	 * @returns {Promise<Ecwt>} -
+	 * @returns {Promise<Ecwt<D>>} -
 	 */
 	async create(
 		data,
@@ -190,7 +190,7 @@ export class EcwtFactory {
 	 * Parses token.
 	 * @async
 	 * @param {string} token String representation of token.
-	 * @returns {Promise<Ecwt>} -
+	 * @returns {Promise<Ecwt<D>>} -
 	 */
 	async verify(token) {
 		if (typeof token !== 'string') {
@@ -297,7 +297,7 @@ export class EcwtFactory {
 	 * Parses token without throwing errors.
 	 * @async
 	 * @param {string} token String representation of token.
-	 * @returns {Promise<{ success: true, ecwt: Ecwt } | { success: false, ecwt: Ecwt | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
+	 * @returns {Promise<{ success: true, ecwt: Ecwt<D> } | { success: false, ecwt: Ecwt<D> | null }>} Returns whether token was parsed and verified successfully and Ecwt if parsed.
 	 */
 	async safeVerify(token) {
 		let ecwt = null;
