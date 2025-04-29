@@ -6,10 +6,10 @@
       "dependencies": {
         "base-x": "5.0.1",
         "cbor-x": "1.5.6",
-        "evilcrypt": "0.2.1-beta.1",
+        "evilcrypt": "0.2.3",
       },
       "devDependencies": {
-        "@kirick/eslint-config": "latest",
+        "@kirick/eslint-config": "0.1.30",
         "@types/node": "^22.14.1",
         "eslint": "9.10.0",
         "publint": "^0.3.12",
@@ -20,7 +20,7 @@
         "vitest": "3.1.2",
       },
       "peerDependencies": {
-        "@kirick/snowflake": "0.2.3",
+        "@kirick/snowflake": "^0.2.3 || ^0.3",
         "lru-cache": "^9 || ^10",
         "redis": "^4.6",
       },
@@ -465,7 +465,7 @@
 
     "esutils": ["esutils@2.0.3", "", {}, "sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g=="],
 
-    "evilcrypt": ["evilcrypt@0.2.1-beta.1", "", {}, "sha512-dPo8p9MaApgO0vAYvmzqWLgyJjVgJ+RbDD0geokWDZLIvPdR0zkLHnSH8PKdcwgu4Za3D2O6MMT42tkMuWdZsw=="],
+    "evilcrypt": ["evilcrypt@0.2.3", "", {}, "sha512-fheXETgyiWrPwAsrVyRwsqp6uLZBBtgFBogIrQbkaceuxv0uOmKYG69+Hal1yYuGUdww94vF3U8uYlfjNDcFOw=="],
 
     "expect-type": ["expect-type@1.2.1", "", {}, "sha512-/kP8CAwxzLVEeFrMm4kMmy4CCDlpipyA7MYLVrdJIkV0fYF0UaigQHRsxHiuY/GEea+bh4KSv3TIlgr+2UL6bw=="],
 
