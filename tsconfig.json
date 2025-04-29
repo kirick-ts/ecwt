@@ -1,0 +1,27 @@
+{
+	"compileOnSave": false,
+	"include": [
+		"src/"
+	],
+	"exclude": [
+		"dist/",
+		"node_modules/",
+		"test/",
+		"**/*.test.*"
+	],
+	"compilerOptions": {
+		"declaration": true,
+		"isolatedDeclarations": true,
+		"target": "esnext",
+		"module": "esnext",
+		"lib": [
+			"ESNext",
+			"ES2021.String"
+		],
+		"moduleResolution": "node",
+		"allowSyntheticDefaultImports": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"removeComments": false
+	}
+}
