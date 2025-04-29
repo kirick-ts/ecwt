@@ -5,24 +5,23 @@
 	],
 	"exclude": [
 		"dist/",
-		"node_modules/"
+		"node_modules/",
+		"test/",
+		"**/*.test.*"
 	],
 	"compilerOptions": {
-		"outDir": "/dev/null",
 		"declaration": true,
-		"declarationDir": "dist/types",
+		"isolatedDeclarations": true,
 		"target": "esnext",
 		"module": "esnext",
-		"moduleResolution": "node",
 		"lib": [
 			"ESNext",
 			"ES2021.String"
 		],
+		"moduleResolution": "node",
 		"allowSyntheticDefaultImports": true,
 		"skipLibCheck": true,
 		"strict": true,
-		"removeComments": false,
-		"allowJs": true,
-		"checkJs": true
+		"removeComments": false
 	}
 }

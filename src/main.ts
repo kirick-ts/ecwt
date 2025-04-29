@@ -1,8 +1,3 @@
-
-/**
- * @typedef {import('./factory.js').CacheValue} CacheValue
- */
-
 export { EcwtFactory } from './factory.js';
 export { Ecwt } from './token.js';
 export {
@@ -10,4 +5,4 @@ export {
 	EcwtInvalidError,
 	EcwtExpiredError,
 	EcwtRevokedError,
-} from './utils/errors.js';
+} from './errors.js';

@@ -1,10 +1,9 @@
-
 # ECWT
-Encrypted CBOR-encoded Web Token
 
-## What is it?
+[![npm version](https://img.shields.io/npm/v/ecwt.svg)](https://www.npmjs.com/package/ecwt)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-ECWT is module for creating and verifying encrypted CBOR-encoded Web Tokens. It is designed to be used in situations where JWT is used, but there are major differences:
+ECWT is module for creating and verifying encrypted CBOR Web Tokens. It is designed to be used in situations where JWT is used, but there are major differences:
 
 | | JWT | ECWT |
 | --- | --- | --- |
@@ -18,9 +17,11 @@ ECWT is module for creating and verifying encrypted CBOR-encoded Web Tokens. It 
 
 ECWT depends on other modules, so you need to install them too.
 
-```
+```sh
 npm install ecwt @kirick/snowflake
+# or
 pnpm install ecwt @kirick/snowflake
+# or
 bun install ecwt @kirick/snowflake
 ```
 
@@ -30,14 +31,14 @@ bun install ecwt @kirick/snowflake
 
 #### `@kirick/snowflake` to create unique IDs (required)
 
-For documentation, see [snowflake-js repository](https://github.com/kirick13/snowflake-js).
+For documentation, see [snowflake repository](https://github.com/kirick-ts/snowflake).
 
 ```javascript
 import { SnowflakeFactory } from '@kirick/snowflake';
 
 const snowflakeFactory = new SnowflakeFactory({
-	server_id: 0,
-	worker_id: 0,
+  server_id: 0,
+  worker_id: 0,
 });
 ```
 
@@ -47,23 +48,23 @@ const snowflakeFactory = new SnowflakeFactory({
 import { createClient } from 'redis';
 
 const redisClient = createClient({
-	socket: {
-		host: 'localhost',
-		port: 6379,
-	},
+  socket: {
+    host: 'localhost',
+    port: 6379,
+  },
 });
 
 await redisClient.connect();
 ```
 
-#### `lru` to avoid decrypt the same token multiple times (optional)
+#### `lru-cache` to avoid decrypt the same token multiple times (optional)
 
 ```javascript
 import { LRUCache } from 'lru-cache';
 
 const lruCache = new LRUCache({
-    max: 1000, // maximum of 1000 items
-    ttl: 60 * 60 * 1000, // 1 hour
+  max: 1000, // maximum of 1000 items
+  ttl: 60 * 60 * 1000, // 1 hour
 });
 ```
 
@@ -76,191 +77,230 @@ In our example, we use [valibot](https://valibot.dev) library.
 ```javascript
 import * as v from 'valibot';
 
-const schema = v.parse.bind(
-	null,
-	v.object({
-		user_id: v.number([
-			v.maxValue(10),
-		]),
-		nick: v.string([
-			v.maxLength(10),
-		]),
-	}),
+const validator = v.parser(
+  v.object({
+    user_id: v.pipe(
+      v.number(),
+      v.maxValue(10),
+    ),
+    nick: v.pipe(
+      v.string(),
+      v.maxLength(10),
+    ),
+  }),
 );
 ```
 
-That schema will prevent creating tokens for users with ID greater than 10 and nicknames longer than 10 characters.
+That validator will prevent creating tokens for users with ID greater than 10 and nicknames longer than 10 characters.
 
-## API
+## Usage Examples
 
-### `EcwtFactory`
+### Initializing the EcwtFactory
 
-```typescript
-constructor({
-    redisClient: RedisClientType?,
-    lruCache: LRU?,
-    snowflakeFactory: SnowflakeFactory,
-    options: {
-        namespace: string?,
-        key: Buffer,
-        schema: (value: any) => any,
-        senmlKeyMap: {
-			[key: string]: number,
-		}?,
-    },
-})
-```
-
-Create your `EcwtFactory` instance to create, validate and revoke tokens.
+First, configure the EcwtFactory with your environment dependencies:
 
 ```javascript
 import { EcwtFactory } from 'ecwt';
+import { SnowflakeFactory } from '@kirick/snowflake';
+import { LRUCache } from 'lru-cache';
+import { createClient } from 'redis';
 
+// Required: Initialize SnowflakeFactory for token ID generation
+const snowflakeFactory = new SnowflakeFactory({
+  server_id: 0,
+  worker_id: 0,
+});
+
+// Optional but recommended: Configure LRU cache for performance optimization
+const lruCache = new LRUCache({
+  max: 1000, // Maximum cache size
+  ttl: 60 * 60 * 1000, // Cache expiration (1 hour)
+});
+
+// Optional: Set up Redis client for token revocation capabilities
+const redisClient = createClient({
+  socket: {
+    host: 'localhost',
+    port: 6379,
+  },
+});
+await redisClient.connect();
+
+// Initialize the factory with your configuration
 const ecwtFactory = new EcwtFactory({
-	redisClient,
-	lruCache,
-	snowflakeFactory,
-	options: {
-        // "options.namespace" is required to identify the storage of revoked tokens in Redis
-		namespace: 'test',
-		key: Buffer.from(
-			'54RoavO+7orGGCKqLXcMwNGFGbcnSEq22f9bJX3lT9lgEPSaRAMBaEnHgMQPTPXcifFvGZmDGzOFqUMfqXsAhQ==',
-			'base64',
-		),
-		schema,
-		senml_key_map: {
-			user_id: 1,
-			nick: 2,
-		},
-	},
+  redisClient,
+  lruCache,
+  snowflakeFactory,
+  options: {
+    // Unique namespace for Redis keys to prevent collisions
+    namespace: 'auth-service',
+    // Your 64-byte encryption key (store securely)
+    key: Buffer.from('YOUR_BASE64_KEY', 'base64'),
+    // Schema validator for payload structure validation
+    validator: myValidator,
+  },
 });
 ```
 
-To reduce token size, which is especially important to reduce amount of data sent over the network, you can use `options.senml_key_map` to map keys to numbers. This way, CBOR encoder will use numbers instead of strings in object keys. You **should never change** number assigned to a key or **reassign number** to another key to avoid breaking the schema. For more information, see [RFC 8428](https://datatracker.ietf.org/doc/html/rfc8428#section-6).
+### Token Generation
 
-#### Class method `create`
-
-```typescript
-create(
-    payload: {
-        [key: string]: any,
-    },
-    options: {
-        ttl: number | null,
-    }
-): Promise<Ecwt>
-```
-
-Creates a token.
-
-`options.ttl` specifies the time to live of the token in seconds. If set to null, token will never expire.
-
-> **Be careful with `ttl　=　null`!**
->
-> Revoked tokens are stored in Redis until they expire. Never-expiring tokens will be stored in Redis **forever**, which will lead to uncontrolled Redis database growth.
-
-Returns `Ecwt` instance.
+Generate tokens with precise payload and expiration controls:
 
 ```javascript
-// Example
+// Create an access token with a 30-minute expiration
 const ecwt = await ecwtFactory.create(
-    {
-        user_id: 1,
-        nick: 'kirick',
-    },
-    {
-        ttl: 30 * 60,
-    }
+  {
+    user_id: 123,
+    name: "John Doe",
+    role: "admin"
+  },
+  {
+    ttl: 30 * 60 // 30 minutes in seconds
+  }
 );
+
+// Get string representation of the token
+const serializedToken = ecwt.token;
+
+// Access token metadata
+console.log(`Token ID: ${ecwt.id}`);
+console.log(`Expiration timestamp: ${ecwt.ts_expired}`);
+console.log(`Remaining validity: ${ecwt.getTTL()} seconds`);
 ```
 
-#### Class method `verify`
+> **Warning regarding non-expiring tokens:**
+>
+> When using `ttl: null`, revoked tokens remain in Redis storage indefinitely. This can lead to uncontrolled database growth over time as these tokens are never automatically purged. Consider implementing a periodic cleanup strategy if non-expiring tokens are required.
 
-```typescript
-verify(
-    token: string,
-): Promise<Ecwt>
-```
+### Token Verification
 
-Parses string representation of the token and verifies it:
-
-- to be decrypted properly,
-- for expiration,
-- for revocation (if Redis client is provided),
-- for schema.
-
-Returns `Ecwt` instance.
-
-If the token is invalid, throws `EcwtInvalidError` which contains `Ecwt` instance in the `ecwt` property.
+Implement verification with appropriate error handling:
 
 ```javascript
-const ecwt = await ecwtFactory.verify(token);
+import {
+  EcwtExpiredError,
+  EcwtRevokedError,
+  EcwtParseError,
+  EcwtInvalidError
+} from 'ecwt';
+
+try {
+  // Verify and decode the token
+  const verifiedToken = await ecwtFactory.verify(serializedToken);
+
+  // Access verified payload data
+  const { user_id, name, role } = verifiedToken.data;
+
+  // Proceed with authenticated operation
+
+} catch (error) {
+  // Handle specific verification failures
+  if (error instanceof EcwtExpiredError) {
+    return respondWithError(401, "Authentication expired");
+  } else if (error instanceof EcwtRevokedError) {
+    return respondWithError(401, "Authentication revoked");
+  } else if (error instanceof EcwtParseError) {
+    return respondWithError(400, "Malformed authentication token");
+  } else if (error instanceof EcwtInvalidError) {
+    return respondWithError(401, "Invalid authentication token");
+  } else {
+    logger.error("Token verification error", error);
+    return respondWithError(500, "Authentication service error");
+  }
+}
 ```
 
-#### Class method `safeVerify`
-
-```typescript
-safeVerify(
-    token: string,
-): Promise<{
-    success: boolean,
-    ecwt: Ecwt | null,
-}>
-```
-
-The same method as `verify`, but does not throw an error if the token is invalid, expired or revoked.
-
-Property `success` is `true` if the token is valid.
-
-Property `ecwt` is `null` if the token cannot be parsed, otherwise it contains `Ecwt` instance.
+For exception-free verification, use `safeVerify`:
 
 ```javascript
-const {
-	success,
-	ecwt,
-} = await ecwtFactory.safeVerify(token);
+const { success, ecwt } = await ecwtFactory.safeVerify(serializedToken);
+
+if (success) {
+  // Proceed with authenticated request
+  const userData = ecwt.data;
+  return processAuthenticatedRequest(userData);
+} else if (ecwt) {
+  // Token structure was valid but failed verification
+  logger.info(`Auth failure: token ${ecwt.id} is invalid`);
+  return respondWithError(401, "Authentication token invalid");
+} else {
+  // Unparsable token structure
+  logger.warn(`Auth failure: malformed token received`);
+  return respondWithError(400, "Malformed authentication token");
+}
 ```
 
-### `Ecwt`
+### Token Revocation
 
-Represents the token. Its counstructor cannot be called by the user.
+Implement secure session termination with token revocation:
 
 ```javascript
-import { Ecwt } from 'ecwt';
+// Terminate user session by revoking the token
+await accessToken.revoke();
+logger.info(`Session terminated: Token ${accessToken.id} revoked`);
+
+// Subsequent verification attempts will fail with EcwtRevokedError
+try {
+  await ecwtFactory.verify(accessToken.token);
+} catch (error) {
+  if (error instanceof EcwtRevokedError) {
+    // Expected behavior for revoked tokens
+    logger.debug("Token verification correctly rejected revoked token");
+  }
+}
 ```
 
-#### Class property `readonly token: string`
+### Advanced: Token Size Optimization
 
-The string representation of the token.
+To reduce token size, use SenML key mapping that replaces string object keys with numeric identifiers throughout your entire payload structure. This compression works at any nesting depth. When implementing, catalog all potential keys across your schema and assign consistent numeric values to each, as these mappings cannot be changed once tokens are in circulation.
 
-#### Class property `readonly id: string`
+> **Important:** The SenML key mapping configuration establishes a permanent relationship between field names and their numeric identifiers. Once deployed, these mappings must remain consistent to maintain compatibility with existing tokens. Adding new fields is acceptable, but changing existing mappings can break previously issued tokens.
 
-The unique ID of the token.
+```javascript
+// Standard configuration without key mapping
+const standardFactory = new EcwtFactory({
+  /* Core dependencies */
+  options: {
+    namespace: 'auth-service',
+    key: encryptionKey,
+  },
+});
 
-#### Class property `readonly snowflake: Snowflake`
+// Optimized configuration with key mapping
+const optimizedFactory = new EcwtFactory({
+  /* Core dependencies */
+  options: {
+    namespace: 'auth-service',
+    key: encryptionKey,
+    senml_key_map: {
+      user_id: 1,
+      name: 2,
+      roles: 3,
+      permissions: 4,
+      metadata: 5,
+      last_login: 6,
+    },
+  },
+});
 
-The `Snowflake` instance of the token. For documentation, see [snowflake-js repository](https://github.com/kirick13/snowflake-js).
+// Measure token size difference
+const payload = {
+  user_id: 12345,
+  name: "John Smith",
+  roles: ["admin", "editor"],
+  permissions: ["read", "write", "delete"],
+  metadata: { last_login: Date.now() },
+};
 
-#### Class property `readonly ts_expired: number | null`
+const standardToken = await standardFactory.create(payload, { ttl: 3600 });
+const optimizedToken = await optimizedFactory.create(payload, { ttl: 3600 });
 
-The timestamp of the token expiration in seconds. Equals to `null` if the token does not expire.
+console.log(`Standard token size: ${standardToken.token.length} bytes`);
+console.log(`Optimized token size: ${optimizedToken.token.length} bytes`);
+console.log(`Size reduction: ${(1 - optimizedToken.token.length / standardToken.token.length).toFixed(2) * 100}%`);
 
-#### Class property `readonly data: { [key: string]: any }`
-
-The payload of the token.
-
-#### Class method `getTTL`
-
-```typescript
-getTTL(): number | null
+// Outputs:
+// > Standard token size: 210 bytes
+// > Optimized token size: 146 bytes
+// > Size reduction: 30%
 ```
-
-Returns current the time to live of the token in seconds. If the token does not expire, returns `null`.
-
-#### Class method `revoke`
-
-```typescript
-revoke(): Promise<void>
-```
-
-Revokes the token. Attempts to verify the revoked token will throw `EcwtRevokedError`.

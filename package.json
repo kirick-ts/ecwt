@@ -1,49 +1,51 @@
 {
 	"name": "ecwt",
-	"version": "0.2.1-beta.6",
+	"version": "0.2.2-dev",
 	"description": "Encrypted CBOR-encoded Web Token",
 	"type": "module",
-	"main": "src/main.js",
-	"types": "dist/types/main.d.ts",
+	"main": "dist/main.js",
+	"types": "dist/main.d.ts",
 	"exports": {
 		".": {
-			"import": "./src/main.js",
+			"import": "./dist/main.js",
 			"require": "./dist/main.cjs"
 		}
 	},
 	"engines": {
-		"node": ">=14.0.0"
+		"node": ">=16"
 	},
 	"dependencies": {
-		"base-x": "4.0.0",
+		"base-x": "5.0.1",
 		"cbor-x": "1.5.6",
 		"evilcrypt": "0.2.1-beta.1"
 	},
 	"peerDependencies": {
-		"@kirick/snowflake": "^0.2.2-beta.2",
+		"@kirick/snowflake": "^0.2.3 || ^0.3",
 		"lru-cache": "^9 || ^10",
-		"redis": "^4"
+		"redis": "^4.6"
 	},
 	"devDependencies": {
-		"@kirick/eslint-config": "^0.1.21",
-		"@types/node": "^22.2",
-		"eslint": "9.8.0",
-		"valibot": "^0.37",
-		"vitest": "^1.6"
+		"@kirick/eslint-config": "0.1.30",
+		"@types/node": "^22.14.1",
+		"eslint": "9.10.0",
+		"publint": "^0.3.12",
+		"tsdown": "^0.10.0",
+		"typescript": "5.8.3",
+		"unplugin-unused": "^0.4.4",
+		"valibot": "^1.0.0",
+		"vitest": "3.1.2"
 	},
 	"scripts": {
-		"build": "bun run build:types && bun run build:cjs",
-		"build:cjs": "bunx esbuild --bundle --platform=node --format=cjs --packages=external --outfile=dist/main.cjs src/main.js",
-		"build:types": "rm -rf dist/esm dist/types ; bunx tsc --emitDeclarationOnly && rm dist/**/*.test.d.ts",
-		"lint": "eslint . && bunx tsc --skipLibCheck --noemit",
-		"publish:npm": "bun run build && bun run lint && bun run test && npm publish",
+		"build": "tsdown src/main.ts --publint --unused --dts --format esm --format cjs && rm dist/main.d.cts",
+		"check": "bun run lint && bun run build && bun run test",
+		"lint": "eslint . && tsc --skipLibCheck --noemit",
 		"redis:up": "docker ps | grep test-redis >/dev/null || docker run --rm -d -p 16379:6379 --name test-redis redis:7-alpine",
 		"test": "bun run redis:up && npm run test:vitest && bun test --coverage",
 		"test:vitest": "vitest run --no-file-parallelism"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/kirick13/ecwt.git"
+		"url": "git+https://github.com/kirick-ts/ecwt.git"
 	},
 	"keywords": [
 		"ecwt",
@@ -56,7 +58,7 @@
 	"author": "Daniil Kirichenko (https://twitter.com/kirickme)",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/kirick13/ecwt/issues"
+		"url": "https://github.com/kirick-ts/ecwt/issues"
 	},
-	"homepage": "https://github.com/kirick13/ecwt#readme"
+	"homepage": "https://github.com/kirick-ts/ecwt#readme"
 }

@@ -1,17 +1,14 @@
-
-/**
- * @import { RedisClientType, RedisModules, RedisFunctions, RedisScripts } from 'redis';
- */
+/* eslint-disable jsdoc/require-jsdoc */
 
 import { SnowflakeFactory } from '@kirick/snowflake';
-import { LRUCache }         from 'lru-cache';
-import { createClient }     from 'redis';
-import * as v               from 'valibot';
+import { LRUCache } from 'lru-cache';
+import { createClient } from 'redis';
+import * as v from 'valibot';
 import {
 	describe,
 	test,
 	expect,
-}                           from 'vitest';
+} from 'vitest';
 import {
 	Ecwt,
 	EcwtFactory,
@@ -19,21 +16,17 @@ import {
 	EcwtInvalidError,
 	EcwtExpiredError,
 	EcwtRevokedError,
-}                           from './main.js';
+} from './main.js';
+import type { LRUCacheValue } from './factory.js';
 
-/** @type {RedisClientType<RedisModules, RedisFunctions, RedisScripts>} */
 const redisClient = createClient({
 	socket: {
-		host: 'localhost',
-		port: Number.parseInt(process.env.REDIS_PORT ?? '16379'),
+		port: 16379,
 	},
 });
 await redisClient.connect();
 
-/** @type {LRUCache<string, import('./factory.js').CacheValue>} */
-const lruCache = new LRUCache({
-	max: 100,
-});
+const lruCache = new LRUCache<string, LRUCacheValue>({ max: 100 });
 
 const snowflakeFactory = new SnowflakeFactory({
 	server_id: 0,
@@ -60,7 +53,6 @@ const validator = v.parser(
 	ValiDataSchema,
 );
 
-/** @type {EcwtFactory<v.InferOutput<typeof ValiDataSchema>>} */
 const ecwtFactory = new EcwtFactory({
 	redisClient,
 	lruCache,
@@ -72,12 +64,7 @@ const ecwtFactory = new EcwtFactory({
 	},
 });
 
-/**
- * @async
- * @param {Function} fn -
- * @returns {Promise<number>} -
- */
-async function measureTime(fn) {
+async function measureTime(fn: (...args: unknown[]) => unknown): Promise<number> {
 	const start = performance.now();
 	await fn();
 	const end = performance.now();
@@ -86,8 +73,7 @@ async function measureTime(fn) {
 }
 
 describe('create token', () => {
-	/** @type {Ecwt | undefined} */
-	let ecwt;
+	let ecwt: Ecwt | undefined;
 
 	test('create', async () => {
 		const ts_expired = Math.floor(Date.now() / 1000) + 10;
@@ -97,9 +83,7 @@ describe('create token', () => {
 				user_id: 1,
 				nick: 'ecwt',
 			},
-			{
-				ttl: 10,
-			},
+			{ ttl: 10 },
 		);
 
 		expect(ecwt).toBeInstanceOf(Ecwt);
@@ -152,7 +136,7 @@ describe('create token', () => {
 			expect.unreachable();
 		}
 
-		// @ts-ignore
+		// @ts-expect-error Accessing private method
 		ecwtFactory._purgeCache();
 
 		const ecwt_verified = await ecwtFactory.verify(ecwt.token);
@@ -172,7 +156,7 @@ describe('create token', () => {
 
 		const _ecwt = ecwt;
 
-		// @ts-ignore
+		// @ts-expect-error Accessing private method
 		ecwtFactory._purgeCache();
 
 		const time_no_cache = await measureTime(async () => {
@@ -195,9 +179,7 @@ describe('create token', () => {
 				user_id: 11,
 				nick: 'ecwt',
 			},
-			{
-				ttl: 10,
-			},
+			{ ttl: 10 },
 		);
 
 		await expect(promise).rejects.toThrow(v.ValiError);
@@ -221,7 +203,6 @@ describe('create token', () => {
 			expect.unreachable();
 		}
 
-		/** @type {EcwtFactory<v.InferOutput<typeof ValiDataSchema>>} */
 		const ecwtFactorySenml = new EcwtFactory({
 			redisClient,
 			lruCache,
@@ -242,9 +223,7 @@ describe('create token', () => {
 				user_id: 1,
 				nick: 'ecwt',
 			},
-			{
-				ttl: 10,
-			},
+			{ ttl: 10 },
 		);
 		const ecwt_senml_verified = await ecwtFactorySenml.verify(ecwt.token);
 
@@ -260,9 +239,7 @@ describe('token expiration', () => {
 				user_id: 1,
 				nick: 'kirick',
 			},
-			{
-				ttl: 1,
-			},
+			{ ttl: 1 },
 		);
 
 		await new Promise((resolve) => {
@@ -280,12 +257,10 @@ describe('token expiration', () => {
 				user_id: 1,
 				nick: 'kirick',
 			},
-			{
-				ttl: 1,
-			},
+			{ ttl: 1 },
 		);
 
-		// @ts-ignore
+		// @ts-expect-error Accessing private method
 		ecwtFactory._purgeCache();
 
 		await new Promise((resolve) => {
@@ -305,9 +280,7 @@ describe('token revocation', () => {
 				user_id: 1,
 				nick: 'kirick',
 			},
-			{
-				ttl: 10,
-			},
+			{ ttl: 10 },
 		);
 
 		await ecwt.revoke();
@@ -323,12 +296,10 @@ describe('token revocation', () => {
 				user_id: 1,
 				nick: 'kirick',
 			},
-			{
-				ttl: 10,
-			},
+			{ ttl: 10 },
 		);
 
-		// @ts-ignore
+		// @ts-expect-error Accessing private method
 		ecwtFactory._purgeCache();
 
 		await ecwt.revoke();
