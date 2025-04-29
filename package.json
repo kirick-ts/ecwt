@@ -1,7 +1,10 @@
 {
 	"name": "ecwt",
 	"version": "0.2.2",
-	"description": "Encrypted CBOR-encoded Web Token",
+	"description": "Encrypted CBOR Web Token",
+	"publishConfig": {
+		"access": "public"
+	},
 	"type": "module",
 	"main": "dist/main.js",
 	"types": "dist/main.d.ts",
