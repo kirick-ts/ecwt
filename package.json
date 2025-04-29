@@ -1,6 +1,6 @@
 {
 	"name": "ecwt",
-	"version": "0.2.2-dev",
+	"version": "0.2.2",
 	"description": "Encrypted CBOR-encoded Web Token",
 	"type": "module",
 	"main": "dist/main.js",
