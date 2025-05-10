@@ -1,5 +1,5 @@
-import {
-	type Snowflake,
+import type {
+	Snowflake,
 	SnowflakeFactory,
 } from '@kirick/snowflake';
 import {
@@ -11,7 +11,7 @@ import {
 	decrypt as evilcryptDecrypt,
 	v2 as evilcryptV2,
 } from 'evilcrypt';
-import { LRUCache } from 'lru-cache';
+import type { LRUCache } from 'lru-cache';
 import type {
 	RedisClientType,
 	RedisFunctions,
