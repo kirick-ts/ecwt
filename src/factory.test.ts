@@ -38,7 +38,7 @@ const key = Buffer.from(
 	'base64',
 );
 
-const ValiDataSchema = v.strictObject({
+const dataSchema = v.strictObject({
 	user_id: v.pipe(
 		v.number(),
 		v.maxValue(10),
@@ -49,9 +49,7 @@ const ValiDataSchema = v.strictObject({
 	),
 });
 
-const validator = v.parser(
-	ValiDataSchema,
-);
+const validator = v.parser(dataSchema);
 
 const ecwtFactory = new EcwtFactory({
 	redisClient,

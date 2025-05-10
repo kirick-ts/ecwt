@@ -9,7 +9,7 @@ export class EcwtParseError extends Error {
 
 /** Error thrown when parsed Ecwt is invalid. */
 export class EcwtInvalidError extends Error {
-	message = 'Ecwt token is invalid.';
+	override message = 'Ecwt token is invalid.';
 
 	constructor(readonly ecwt: Ecwt) {
 		super();
@@ -18,10 +18,10 @@ export class EcwtInvalidError extends Error {
 
 /** Error thrown when parsed Ecwt is expired. */
 export class EcwtExpiredError extends EcwtInvalidError {
-	message = 'Ecwt is expired.';
+	override message = 'Ecwt is expired.';
 }
 
 /** Error thrown when parsed Ecwt is revoked. */
 export class EcwtRevokedError extends EcwtInvalidError {
-	message = 'Ecwt is revoked.';
+	override message = 'Ecwt is revoked.';
 }
