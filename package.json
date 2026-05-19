@@ -1,16 +1,20 @@
 {
 	"name": "ecwt",
-	"version": "0.2.5",
+	"version": "0.3.0",
 	"description": "Encrypted CBOR Web Token",
 	"publishConfig": {
 		"access": "public"
 	},
 	"type": "module",
-	"main": "dist/main.js",
-	"types": "dist/main.d.ts",
+	"main": "dist/main.mjs",
+	"types": "dist/main.d.mts",
 	"exports": {
 		".": {
-			"import": "./dist/main.js",
+			"types": {
+				"import": "./dist/main.d.mts",
+				"require": "./dist/main.d.cts"
+			},
+			"import": "./dist/main.mjs",
 			"require": "./dist/main.cjs"
 		}
 	},
@@ -23,27 +27,29 @@
 		"evilcrypt": "0.2.3"
 	},
 	"peerDependencies": {
-		"@kirick/snowflake": "^0.2.3 || ^0.3",
-		"lru-cache": "^9 || ^10",
+		"@kirick/snowflake": "^0.3",
+		"lru-cache": "^11",
 		"redis": "^4.6"
 	},
 	"devDependencies": {
-		"@kirick/eslint-config": "0.1.30",
-		"@types/node": "^22.14.1",
-		"eslint": "9.10.0",
-		"publint": "^0.3.12",
-		"tsdown": "^0.10.0",
-		"typescript": "5.8.3",
-		"unplugin-unused": "^0.4.4",
-		"valibot": "^1.0.0",
-		"vitest": "3.1.2"
+		"@biomejs/biome": "2.4.10",
+		"@kirick/lint": "0.3.0",
+		"@types/node": "22.14.1",
+		"eslint": "10.2.0",
+		"oxlint": "1.58.0",
+		"publint": "0.3.18",
+		"tsdown": "0.21.10",
+		"typescript": "6.0.2",
+		"unplugin-unused": "0.5.7",
+		"valibot": "1.4.0",
+		"vitest": "4.1.6"
 	},
 	"scripts": {
-		"build": "tsdown src/main.ts --publint --unused --dts --format esm --format cjs && rm dist/main.d.cts",
+		"build": "tsdown src/main.ts --format esm --format cjs --dts --publint --unused",
 		"check": "bun run lint && bun run build && bun run test",
-		"lint": "eslint . && tsc --skipLibCheck --noemit",
+		"lint": "biome format && oxlint && eslint . && tsc",
 		"redis:up": "docker ps | grep test-redis >/dev/null || docker run --rm -d -p 16379:6379 --name test-redis redis:7-alpine",
-		"test": "bun run redis:up && npm run test:vitest && bun test --coverage",
+		"test": "bun run redis:up && bun test && npm run test:vitest",
 		"test:vitest": "vitest run --no-file-parallelism"
 	},
 	"repository": {

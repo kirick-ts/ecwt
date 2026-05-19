@@ -1,7 +1,9 @@
 import type { Snowflake } from '@kirick/snowflake';
 import type { EcwtFactory } from './factory.js';
 
-export class Ecwt<const D extends Record<string, unknown> = Record<string, unknown>> {
+export class Ecwt<
+	const D extends Record<string, unknown> = Record<string, unknown>,
+> {
 	/** Token string representation. */
 	readonly token: string;
 	/** Token ID. */
@@ -14,20 +16,20 @@ export class Ecwt<const D extends Record<string, unknown> = Record<string, unkno
 	private ttl_initial: number | null;
 
 	/**
-	 * @param {EcwtFactory} ecwtFactory -
-	 * @param {object} options -
-	 * @param {string} options.token String representation of token.
-	 * @param {Snowflake} options.snowflake -
-	 * @param {number | null} options.ttl_initial Time to live in seconds at the moment of token creation.
-	 * @param {D} options.data Data stored in token.
+	 * @param ecwtFactory -
+	 * @param options -
+	 * @param options.token String representation of token.
+	 * @param options.snowflake -
+	 * @param options.ttl_initial Time to live in seconds at the moment of token creation.
+	 * @param options.data Data stored in token.
 	 */
 	constructor(
 		ecwtFactory: EcwtFactory,
 		options: {
-			token: string,
-			snowflake: Snowflake,
-			ttl_initial: number | null,
-			data: D,
+			token: string;
+			snowflake: Snowflake;
+			ttl_initial: number | null;
+			data: D;
 		},
 	) {
 		this.token = options.token;
@@ -60,13 +62,13 @@ export class Ecwt<const D extends Record<string, unknown> = Record<string, unkno
 			return null;
 		}
 
-		return this.ttl_initial - Math.floor((Date.now() - this.snowflake.timestamp) / 1000);
+		return (
+			this.ttl_initial
+			- Math.floor((Date.now() - this.snowflake.timestamp) / 1000)
+		);
 	}
 
-	/**
-	 * Revokes token.
-	 * @returns {} -
-	 */
+	/** Revokes token. */
 	revoke(): Promise<void> {
 		// @ts-expect-error Accessing private method
 		return this.ecwtFactory._revoke(
