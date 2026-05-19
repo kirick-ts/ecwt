@@ -1,6 +1,6 @@
 {
 	"name": "ecwt",
-	"version": "0.3.0-beta.1",
+	"version": "0.3.0",
 	"description": "Encrypted CBOR Web Token",
 	"publishConfig": {
 		"access": "public"
