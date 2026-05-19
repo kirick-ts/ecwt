@@ -1,23 +1,20 @@
 /* eslint-disable jsdoc/require-jsdoc */
+// oxlint-disable max-lines-per-function
 
 import { SnowflakeFactory } from '@kirick/snowflake';
 import { LRUCache } from 'lru-cache';
 import { createClient } from 'redis';
 import * as v from 'valibot';
-import {
-	describe,
-	test,
-	expect,
-} from 'vitest';
+import { describe, expect, test } from 'vitest';
+import type { LRUCacheValue } from './factory.js';
 import {
 	Ecwt,
-	EcwtFactory,
-	EcwtParseError,
-	EcwtInvalidError,
 	EcwtExpiredError,
+	EcwtFactory,
+	EcwtInvalidError,
+	EcwtParseError,
 	EcwtRevokedError,
 } from './main.js';
-import type { LRUCacheValue } from './factory.js';
 
 const redisClient = createClient({
 	socket: {
@@ -25,6 +22,7 @@ const redisClient = createClient({
 	},
 });
 await redisClient.connect();
+await redisClient.flushAll();
 
 const lruCache = new LRUCache<string, LRUCacheValue>({ max: 100 });
 
@@ -39,14 +37,8 @@ const key = Buffer.from(
 );
 
 const dataSchema = v.strictObject({
-	user_id: v.pipe(
-		v.number(),
-		v.maxValue(10),
-	),
-	nick: v.pipe(
-		v.string(),
-		v.maxLength(10),
-	),
+	user_id: v.pipe(v.number(), v.maxValue(10)),
+	nick: v.pipe(v.string(), v.maxLength(10)),
 });
 
 const validator = v.parser(dataSchema);
@@ -62,7 +54,9 @@ const ecwtFactory = new EcwtFactory({
 	},
 });
 
-async function measureTime(fn: (...args: unknown[]) => unknown): Promise<number> {
+async function measureTime(
+	fn: (...args: unknown[]) => unknown,
+): Promise<number> {
 	const start = performance.now();
 	await fn();
 	const end = performance.now();
@@ -88,9 +82,7 @@ describe('create token', () => {
 		expect(typeof ecwt.token).toBe('string');
 		// console.log('token', ecwt.token);
 		expect(ecwt.ts_expired).toBe(ts_expired);
-		expect(
-			ecwt.getTTL(),
-		).toBe(10);
+		expect(ecwt.getTTL()).toBe(10);
 	});
 
 	test('verify', async () => {
@@ -278,7 +270,7 @@ describe('token revocation', () => {
 				user_id: 1,
 				nick: 'kirick',
 			},
-			{ ttl: 10 },
+			{ ttl: 100 },
 		);
 
 		await ecwt.revoke();
@@ -294,7 +286,7 @@ describe('token revocation', () => {
 				user_id: 1,
 				nick: 'kirick',
 			},
-			{ ttl: 10 },
+			{ ttl: 100 },
 		);
 
 		// @ts-expect-error Accessing private method

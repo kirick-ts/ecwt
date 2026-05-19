@@ -2,48 +2,6 @@ import { Snowflake, SnowflakeFactory } from "@kirick/snowflake";
 import { LRUCache } from "lru-cache";
 import { RedisClientType, RedisFunctions, RedisModules, RedisScripts } from "redis";
 
-//#region src/token.d.ts
-declare class Ecwt<D extends Record<string, unknown> = Record<string, unknown>> {
-  /** Token string representation. */
-  readonly token: string;
-  /** Token ID. */
-  readonly id: string;
-  /** Snowflake associated with token. */
-  readonly snowflake: Snowflake;
-  /** Data stored in token. */
-  readonly data: Readonly<D>;
-  private ecwtFactory;
-  private ttl_initial;
-  /**
-  * @param {EcwtFactory} ecwtFactory -
-  * @param {object} options -
-  * @param {string} options.token String representation of token.
-  * @param {Snowflake} options.snowflake -
-  * @param {number | null} options.ttl_initial Time to live in seconds at the moment of token creation.
-  * @param {D} options.data Data stored in token.
-  */
-  constructor(ecwtFactory: EcwtFactory, options: {
-    token: string;
-    snowflake: Snowflake;
-    ttl_initial: number | null;
-    data: D;
-  });
-  /**
-  * Unix timestamp of token expiration in seconds.
-  * @returns -
-  */
-  get ts_expired(): number | null;
-  /**
-  * Actual time to live in seconds.
-  * @returns -
-  */
-  getTTL(): number | null;
-  /**
-  * Revokes token.
-  * @returns {} -
-  */
-  revoke(): Promise<void>;
-} //#endregion
 //#region src/factory.d.ts
 type LRUCacheValue = {
   snowflake: Snowflake;
@@ -52,24 +10,17 @@ type LRUCacheValue = {
 };
 type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
 type EcwtFactoryArguments<D extends Record<string, unknown>> = {
-  /** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */
-  redisClient?: RedisClient;
-  /** LRUCache instance. If not provided, tokens will be decrypted every time they are verified. */
-  lruCache?: LRUCache<string, LRUCacheValue>;
-  /** SnowflakeFactory instance. Generates unique IDs for tokens. */
+  /** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */redisClient?: RedisClient; /** LRUCache instance. If not provided, tokens will be decrypted every time they are verified. */
+  lruCache?: LRUCache<string, LRUCacheValue>; /** SnowflakeFactory instance. Generates unique IDs for tokens. */
   snowflakeFactory: SnowflakeFactory;
   options: {
-    /** Namespace for Redis keys. */
-    namespace?: string;
-    /** Encryption key, 64 bytes. */
-    key: Buffer;
-    /** Validator for token data. Should return validated value or throw an error. */
-    validator?: (value: unknown) => D;
-    /** Payload object keys mapped for their SenML keys. */
+    /** Namespace for Redis keys. */namespace?: string; /** Encryption key, 64 bytes. */
+    key: Buffer; /** Validator for token data. Should return validated value or throw an error. */
+    validator?: (value: unknown) => D; /** Payload object keys mapped for their SenML keys. */
     senml_key_map?: Record<string, number>;
   };
 };
-declare class EcwtFactory<D extends Record<string, unknown> = Record<string, unknown>> {
+declare class EcwtFactory<const D extends Record<string, unknown> = Record<string, unknown>> {
   private redisClient;
   private lruCache;
   private snowflakeFactory;
@@ -92,8 +43,7 @@ declare class EcwtFactory<D extends Record<string, unknown> = Record<string, unk
   * @returns -
   */
   create(data: D, options?: {
-    /** Time to live in seconds. If not defined, token will never expire. */
-    ttl?: number;
+    /** Time to live in seconds. If not defined, token will never expire. */ttl?: number;
   }): Promise<Ecwt<D>>;
   /**
   * Sets data to cache.
@@ -127,34 +77,68 @@ declare class EcwtFactory<D extends Record<string, unknown> = Record<string, unk
   * @returns -
   */
   private _revoke;
-  /**
-  * Purges LRU cache.
-  * @returns {void} -
-  */
+  /** Purges LRU cache. */
   private _purgeCache;
-} //#endregion
+}
+//#endregion
+//#region src/token.d.ts
+declare class Ecwt<const D extends Record<string, unknown> = Record<string, unknown>> {
+  /** Token string representation. */
+  readonly token: string;
+  /** Token ID. */
+  readonly id: string;
+  /** Snowflake associated with token. */
+  readonly snowflake: Snowflake;
+  /** Data stored in token. */
+  readonly data: Readonly<D>;
+  private ecwtFactory;
+  private ttl_initial;
+  /**
+  * @param ecwtFactory -
+  * @param options -
+  * @param options.token String representation of token.
+  * @param options.snowflake -
+  * @param options.ttl_initial Time to live in seconds at the moment of token creation.
+  * @param options.data Data stored in token.
+  */
+  constructor(ecwtFactory: EcwtFactory, options: {
+    token: string;
+    snowflake: Snowflake;
+    ttl_initial: number | null;
+    data: D;
+  });
+  /**
+  * Unix timestamp of token expiration in seconds.
+  * @returns -
+  */
+  get ts_expired(): number | null;
+  /**
+  * Actual time to live in seconds.
+  * @returns -
+  */
+  getTTL(): number | null;
+  /** Revokes token. */
+  revoke(): Promise<void>;
+}
+//#endregion
 //#region src/errors.d.ts
 /** Error thrown when string token cannot be parsed to Ecwt. */
 declare class EcwtParseError extends Error {
   constructor();
 }
-
 /** Error thrown when parsed Ecwt is invalid. */
 declare class EcwtInvalidError extends Error {
   readonly ecwt: Ecwt;
-  message: string;
+  override message: string;
   constructor(ecwt: Ecwt);
 }
-
 /** Error thrown when parsed Ecwt is expired. */
 declare class EcwtExpiredError extends EcwtInvalidError {
-  message: string;
+  override message: string;
 }
-
 /** Error thrown when parsed Ecwt is revoked. */
 declare class EcwtRevokedError extends EcwtInvalidError {
-  message: string;
+  override message: string;
 }
-
 //#endregion
 export { Ecwt, EcwtExpiredError, EcwtFactory, EcwtInvalidError, EcwtParseError, EcwtRevokedError };

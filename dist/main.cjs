@@ -1,5 +1,5 @@
-"use strict";
-//#region rolldown:runtime
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+//#region \0rolldown/runtime.js
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -20,12 +20,35 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 	value: mod,
 	enumerable: true
 }) : target, mod));
-
 //#endregion
-const cbor_x = __toESM(require("cbor-x"));
-const evilcrypt = __toESM(require("evilcrypt"));
-const base_x = __toESM(require("base-x"));
-
+let cbor_x = require("cbor-x");
+let evilcrypt = require("evilcrypt");
+let base_x = require("base-x");
+base_x = __toESM(base_x, 1);
+//#region src/errors.ts
+/** Error thrown when string token cannot be parsed to Ecwt. */
+var EcwtParseError = class extends Error {
+	constructor() {
+		super("Cannot parse data to Ecwt token.");
+	}
+};
+/** Error thrown when parsed Ecwt is invalid. */
+var EcwtInvalidError = class extends Error {
+	message = "Ecwt token is invalid.";
+	constructor(ecwt) {
+		super();
+		this.ecwt = ecwt;
+	}
+};
+/** Error thrown when parsed Ecwt is expired. */
+var EcwtExpiredError = class extends EcwtInvalidError {
+	message = "Ecwt is expired.";
+};
+/** Error thrown when parsed Ecwt is revoked. */
+var EcwtRevokedError = class extends EcwtInvalidError {
+	message = "Ecwt is revoked.";
+};
+//#endregion
 //#region src/token.ts
 var Ecwt = class {
 	/** Token string representation. */
@@ -39,12 +62,12 @@ var Ecwt = class {
 	ecwtFactory;
 	ttl_initial;
 	/**
-	* @param {EcwtFactory} ecwtFactory -
-	* @param {object} options -
-	* @param {string} options.token String representation of token.
-	* @param {Snowflake} options.snowflake -
-	* @param {number | null} options.ttl_initial Time to live in seconds at the moment of token creation.
-	* @param {D} options.data Data stored in token.
+	* @param ecwtFactory -
+	* @param options -
+	* @param options.token String representation of token.
+	* @param options.snowflake -
+	* @param options.ttl_initial Time to live in seconds at the moment of token creation.
+	* @param options.data Data stored in token.
 	*/
 	constructor(ecwtFactory, options) {
 		this.token = options.token;
@@ -70,44 +93,14 @@ var Ecwt = class {
 		if (this.ttl_initial === null) return null;
 		return this.ttl_initial - Math.floor((Date.now() - this.snowflake.timestamp) / 1e3);
 	}
-	/**
-	* Revokes token.
-	* @returns {} -
-	*/
+	/** Revokes token. */
 	revoke() {
 		return this.ecwtFactory._revoke(this.id, this.snowflake.timestamp, this.ttl_initial);
 	}
 };
-
 //#endregion
 //#region src/utils.ts
 const base62 = (0, base_x.default)("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
-
-//#endregion
-//#region src/errors.ts
-/** Error thrown when string token cannot be parsed to Ecwt. */
-var EcwtParseError = class extends Error {
-	constructor() {
-		super("Cannot parse data to Ecwt token.");
-	}
-};
-/** Error thrown when parsed Ecwt is invalid. */
-var EcwtInvalidError = class extends Error {
-	message = "Ecwt token is invalid.";
-	constructor(ecwt) {
-		super();
-		this.ecwt = ecwt;
-	}
-};
-/** Error thrown when parsed Ecwt is expired. */
-var EcwtExpiredError = class extends EcwtInvalidError {
-	message = "Ecwt is expired.";
-};
-/** Error thrown when parsed Ecwt is revoked. */
-var EcwtRevokedError = class extends EcwtInvalidError {
-	message = "Ecwt is revoked.";
-};
-
 //#endregion
 //#region src/factory.ts
 const REDIS_PREFIX = "@ecwt:";
@@ -166,7 +159,8 @@ var EcwtFactory = class {
 	* @param cache_value - Data to be stored in cache.
 	*/
 	setCache(token, cache_value) {
-		this.lruCache?.set(token, cache_value, cache_value.ttl_initial === null ? void 0 : { ttl: cache_value.ttl_initial * 1e3 });
+		var _this$lruCache;
+		(_this$lruCache = this.lruCache) === null || _this$lruCache === void 0 || _this$lruCache.set(token, cache_value, cache_value.ttl_initial === null ? void 0 : { ttl: cache_value.ttl_initial * 1e3 });
 	}
 	/**
 	* Parses token.
@@ -174,11 +168,12 @@ var EcwtFactory = class {
 	* @returns -
 	*/
 	async verify(token) {
+		var _this$lruCache2, _this$redisClient;
 		if (typeof token !== "string") throw new TypeError("Token must be a string.");
 		let snowflake;
 		let ttl_initial;
 		let data;
-		const cached_entry = this.lruCache?.info(token);
+		const cached_entry = (_this$lruCache2 = this.lruCache) === null || _this$lruCache2 === void 0 ? void 0 : _this$lruCache2.info(token);
 		if (cached_entry === void 0) {
 			const token_encrypted = Buffer.from(base62.decode(token));
 			let token_raw;
@@ -209,10 +204,7 @@ var EcwtFactory = class {
 			data
 		});
 		if (typeof ttl_initial === "number" && Number.isNaN(ttl_initial) !== true && snowflake.timestamp + ttl_initial * 1e3 < Date.now()) throw new EcwtExpiredError(ecwt);
-		if (this.redisClient) {
-			const score = await this.redisClient.ZSCORE(this.redis_key_revoked, ecwt.id);
-			if (score !== null) throw new EcwtRevokedError(ecwt);
-		}
+		if (await ((_this$redisClient = this.redisClient) === null || _this$redisClient === void 0 ? void 0 : _this$redisClient.HEXISTS(this.redis_key_revoked, ecwt.id))) throw new EcwtRevokedError(ecwt);
 		return ecwt;
 	}
 	/**
@@ -251,25 +243,26 @@ var EcwtFactory = class {
 		if (this.redisClient) {
 			ttl_initial ??= Number.MAX_SAFE_INTEGER;
 			const ts_ms_expired = ts_ms_created + ttl_initial * 1e3;
-			if (ts_ms_expired > Date.now()) await this.redisClient.MULTI().ZADD(this.redis_key_revoked, {
-				score: ts_ms_expired,
-				value: token_id
-			}).ZREMRANGEBYSCORE(this.redis_key_revoked, "-inf", Date.now()).EXEC();
+			if (ts_ms_expired > Date.now()) await this.redisClient.sendCommand([
+				"HSET",
+				this.redis_key_revoked,
+				token_id,
+				"",
+				"PX",
+				String(ts_ms_expired - Date.now())
+			]);
 		} else console.warn("[ecwt] Redis client is not provided. Tokens cannot be revoked.");
 	}
-	/**
-	* Purges LRU cache.
-	* @returns {void} -
-	*/
+	/** Purges LRU cache. */
 	_purgeCache() {
-		this.lruCache?.clear();
+		var _this$lruCache3;
+		(_this$lruCache3 = this.lruCache) === null || _this$lruCache3 === void 0 || _this$lruCache3.clear();
 	}
 };
-
 //#endregion
-exports.Ecwt = Ecwt
-exports.EcwtExpiredError = EcwtExpiredError
-exports.EcwtFactory = EcwtFactory
-exports.EcwtInvalidError = EcwtInvalidError
-exports.EcwtParseError = EcwtParseError
-exports.EcwtRevokedError = EcwtRevokedError
+exports.Ecwt = Ecwt;
+exports.EcwtExpiredError = EcwtExpiredError;
+exports.EcwtFactory = EcwtFactory;
+exports.EcwtInvalidError = EcwtInvalidError;
+exports.EcwtParseError = EcwtParseError;
+exports.EcwtRevokedError = EcwtRevokedError;

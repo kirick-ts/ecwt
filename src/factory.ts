@@ -1,16 +1,10 @@
-import type {
-	Snowflake,
-	SnowflakeFactory,
-} from '@kirick/snowflake';
+import type { Snowflake, SnowflakeFactory } from '@kirick/snowflake';
 import {
 	Encoder as CborEncoder,
-	encode as cborEncode,
 	decode as cborDecode,
+	encode as cborEncode,
 } from 'cbor-x';
-import {
-	decrypt as evilcryptDecrypt,
-	v2 as evilcryptV2,
-} from 'evilcrypt';
+import { decrypt as evilcryptDecrypt, v2 as evilcryptV2 } from 'evilcrypt';
 import type { LRUCache } from 'lru-cache';
 import type {
 	RedisClientType,
@@ -18,43 +12,45 @@ import type {
 	RedisModules,
 	RedisScripts,
 } from 'redis';
+import {
+	EcwtExpiredError,
+	EcwtInvalidError,
+	EcwtParseError,
+	EcwtRevokedError,
+} from './errors.js';
 import { Ecwt } from './token.js';
 import { base62 } from './utils.js';
-import {
-	EcwtInvalidError,
-	EcwtExpiredError,
-	EcwtRevokedError,
-	EcwtParseError,
-} from './errors.js';
 
 export type LRUCacheValue = {
-	snowflake: Snowflake,
-	ttl_initial: number | null,
-	data: Record<string, unknown>,
+	snowflake: Snowflake;
+	ttl_initial: number | null;
+	data: Record<string, unknown>;
 };
 type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
 type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 	/** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */
-	redisClient?: RedisClient,
+	redisClient?: RedisClient;
 	/** LRUCache instance. If not provided, tokens will be decrypted every time they are verified. */
-	lruCache?: LRUCache<string, LRUCacheValue>,
+	lruCache?: LRUCache<string, LRUCacheValue>;
 	/** SnowflakeFactory instance. Generates unique IDs for tokens. */
-	snowflakeFactory: SnowflakeFactory,
+	snowflakeFactory: SnowflakeFactory;
 	options: {
 		/** Namespace for Redis keys. */
-		namespace?: string,
+		namespace?: string;
 		/** Encryption key, 64 bytes. */
-		key: Buffer,
+		key: Buffer;
 		/** Validator for token data. Should return validated value or throw an error. */
-		validator?: (value: unknown) => D,
+		validator?: (value: unknown) => D;
 		/** Payload object keys mapped for their SenML keys. */
-		senml_key_map?: Record<string, number>,
-	},
+		senml_key_map?: Record<string, number>;
+	};
 };
 
 const REDIS_PREFIX = '@ecwt:';
 
-export class EcwtFactory<const D extends Record<string, unknown> = Record<string, unknown>> {
+export class EcwtFactory<
+	const D extends Record<string, unknown> = Record<string, unknown>,
+> {
 	private redisClient: RedisClient | undefined;
 	private lruCache: LRUCache<string, LRUCacheValue> | undefined;
 	private snowflakeFactory: SnowflakeFactory;
@@ -96,7 +92,7 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 		data: D,
 		options: {
 			/** Time to live in seconds. If not defined, token will never expire. */
-			ttl?: number,
+			ttl?: number;
 		} = {},
 	): Promise<Ecwt<D>> {
 		if (typeof this.validator === 'function') {
@@ -105,11 +101,7 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 
 		const ttl = options.ttl ?? null;
 		const snowflake = await this.snowflakeFactory.createSafe();
-		const payload = [
-			snowflake.toBuffer(),
-			ttl,
-			data,
-		];
+		const payload = [snowflake.toBuffer(), ttl, data];
 		const token_raw = this.cborEncoder
 			? this.cborEncoder.encode(payload)
 			: cborEncode(payload);
@@ -121,24 +113,18 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 
 		const token = base62.encode(token_encrypted);
 
-		this.setCache(
-			token,
-			{
-				snowflake,
-				ttl_initial: ttl,
-				data,
-			},
-		);
+		this.setCache(token, {
+			snowflake,
+			ttl_initial: ttl,
+			data,
+		});
 
-		return new Ecwt(
-			this,
-			{
-				token,
-				snowflake,
-				ttl_initial: ttl,
-				data,
-			},
-		);
+		return new Ecwt(this, {
+			token,
+			snowflake,
+			ttl_initial: ttl,
+			data,
+		});
 	}
 
 	/**
@@ -153,8 +139,8 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 			cache_value.ttl_initial === null
 				? undefined
 				: {
-					ttl: cache_value.ttl_initial * 1000,
-				},
+						ttl: cache_value.ttl_initial * 1000,
+					},
 		);
 	}
 
@@ -175,9 +161,7 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 		const cached_entry = this.lruCache?.info(token);
 		// token is not cached
 		if (cached_entry === undefined) {
-			const token_encrypted = Buffer.from(
-				base62.decode(token),
-			);
+			const token_encrypted = Buffer.from(base62.decode(token));
 
 			let token_raw;
 			try {
@@ -185,8 +169,7 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 					token_encrypted,
 					this.encryption_key,
 				);
-			}
-			catch {
+			} catch {
 				throw new EcwtParseError();
 			}
 
@@ -194,71 +177,49 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 				? this.cborEncoder.decode(token_raw)
 				: cborDecode(token_raw);
 
-			const [ snowflake_buffer ] = payload;
-			[
-				,
-				ttl_initial,
-				data,
-			] = payload;
+			const [snowflake_buffer] = payload;
+			[, ttl_initial, data] = payload;
 
 			snowflake = this.snowflakeFactory.parse(snowflake_buffer);
 
 			if (typeof this.validator === 'function') {
 				try {
 					data = this.validator(data);
-				}
-				catch {
+				} catch {
 					throw new EcwtParseError();
 				}
 			}
 
-			this.setCache(
-				token,
-				{
-					snowflake,
-					ttl_initial,
-					data,
-				},
-			);
-		}
-		else {
-			({
+			this.setCache(token, {
 				snowflake,
 				ttl_initial,
 				data,
-			} = cached_entry.value);
+			});
+		} else {
+			({ snowflake, ttl_initial, data } = cached_entry.value);
 		}
 
 		// console.log('snowflake', snowflake);
 		// console.log('ttl', ttl);
 		// console.log('data', data);
 
-		const ecwt = new Ecwt(
-			this,
-			{
-				token,
-				snowflake,
-				ttl_initial,
-				data,
-			},
-		);
+		const ecwt = new Ecwt(this, {
+			token,
+			snowflake,
+			ttl_initial,
+			data,
+		});
 
 		if (
 			typeof ttl_initial === 'number'
 			&& Number.isNaN(ttl_initial) !== true
-			&& snowflake.timestamp + (ttl_initial * 1000) < Date.now()
+			&& snowflake.timestamp + ttl_initial * 1000 < Date.now()
 		) {
 			throw new EcwtExpiredError(ecwt);
 		}
 
-		if (this.redisClient) {
-			const score = await this.redisClient.ZSCORE(
-				this.redis_key_revoked,
-				ecwt.id,
-			);
-			if (score !== null) {
-				throw new EcwtRevokedError(ecwt);
-			}
+		if (await this.redisClient?.HEXISTS(this.redis_key_revoked, ecwt.id)) {
+			throw new EcwtRevokedError(ecwt);
 		}
 
 		return ecwt;
@@ -270,14 +231,14 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 	 * @returns Returns whether token was parsed and verified successfully and Ecwt if parsed.
 	 */
 	async safeVerify(token: string): Promise<
-		{
-			success: true,
-			ecwt: Ecwt<D>,
-		}
 		| {
-			success: false,
-			ecwt: Ecwt<D> | null,
-		}
+				success: true;
+				ecwt: Ecwt<D>;
+		  }
+		| {
+				success: false;
+				ecwt: Ecwt<D> | null;
+		  }
 	> {
 		let ecwt = null;
 		try {
@@ -287,8 +248,7 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 				success: true,
 				ecwt,
 			};
-		}
-		catch (error) {
+		} catch (error) {
 			if (error instanceof EcwtParseError) {
 				return {
 					success: false,
@@ -322,34 +282,26 @@ export class EcwtFactory<const D extends Record<string, unknown> = Record<string
 		if (this.redisClient) {
 			ttl_initial ??= Number.MAX_SAFE_INTEGER;
 
-			const ts_ms_expired = ts_ms_created + (ttl_initial * 1000);
+			const ts_ms_expired = ts_ms_created + ttl_initial * 1000;
 			if (ts_ms_expired > Date.now()) {
-				await this.redisClient.MULTI()
-					.ZADD(
-						this.redis_key_revoked,
-						{
-							score: ts_ms_expired,
-							value: token_id,
-						},
-					)
-					.ZREMRANGEBYSCORE(
-						this.redis_key_revoked,
-						'-inf',
-						Date.now(),
-					)
-					.EXEC();
+				await this.redisClient.sendCommand([
+					'HSET',
+					this.redis_key_revoked,
+					token_id,
+					'',
+					'PX',
+					String(ts_ms_expired - Date.now()),
+				]);
 			}
-		}
-		else {
-			// eslint-disable-next-line no-console
-			console.warn('[ecwt] Redis client is not provided. Tokens cannot be revoked.');
+		} else {
+			// oxlint-disable-next-line no-console
+			console.warn(
+				'[ecwt] Redis client is not provided. Tokens cannot be revoked.',
+			);
 		}
 	}
 
-	/**
-	 * Purges LRU cache.
-	 * @returns {void} -
-	 */
+	/** Purges LRU cache. */
 	private _purgeCache() {
 		this.lruCache?.clear();
 	}
