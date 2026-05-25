@@ -43,16 +43,20 @@ const dataSchema = v.strictObject({
 
 const validator = v.parser(dataSchema);
 
-const ecwtFactory = new EcwtFactory({
-	redisClient,
-	lruCache,
-	snowflakeFactory,
-	options: {
-		namespace: 'test',
-		key,
-		validator,
-	},
-});
+function createEcwtFactory() {
+	return new EcwtFactory({
+		redisClient,
+		lruCache,
+		snowflakeFactory,
+		options: {
+			namespace: 'test',
+			key,
+			validator,
+		},
+	});
+}
+
+const ecwtFactory = createEcwtFactory();
 
 async function measureTime(
 	fn: (...args: unknown[]) => unknown,
@@ -126,7 +130,6 @@ describe('create token', () => {
 			expect.unreachable();
 		}
 
-		// @ts-expect-error Accessing private method
 		ecwtFactory._purgeCache();
 
 		const ecwt_verified = await ecwtFactory.verify(ecwt.token);
@@ -146,7 +149,6 @@ describe('create token', () => {
 
 		const _ecwt = ecwt;
 
-		// @ts-expect-error Accessing private method
 		ecwtFactory._purgeCache();
 
 		const time_no_cache = await measureTime(async () => {
@@ -250,7 +252,6 @@ describe('token expiration', () => {
 			{ ttl: 1 },
 		);
 
-		// @ts-expect-error Accessing private method
 		ecwtFactory._purgeCache();
 
 		await new Promise((resolve) => {
@@ -289,7 +290,6 @@ describe('token revocation', () => {
 			{ ttl: 100 },
 		);
 
-		// @ts-expect-error Accessing private method
 		ecwtFactory._purgeCache();
 
 		await ecwt.revoke();
@@ -297,5 +297,91 @@ describe('token revocation', () => {
 		const promise = ecwtFactory.verify(ecwt.token);
 		await expect(promise).rejects.toThrow(EcwtRevokedError);
 		await expect(promise).rejects.toThrow(EcwtInvalidError);
+	});
+
+	describe('migration', () => {
+		const REDIS_KEY = '@ecwt:test:revoked';
+
+		test('actual migration', async () => {
+			await redisClient
+				.MULTI()
+				.DEL(REDIS_KEY)
+				.addCommand([
+					'ZADD',
+					REDIS_KEY,
+					String(Date.now() + 10_000),
+					'deadbeef',
+				])
+				.EXEC();
+
+			// we use a new factory to test that the "migrated" flag is cleared
+			const ecwtFactory2 = createEcwtFactory();
+
+			const ecwt = await ecwtFactory2.create(
+				{
+					user_id: 1,
+					nick: 'kirick',
+				},
+				{ ttl: 100 },
+			);
+
+			// force migration
+			await ecwtFactory2.verify(ecwt.token);
+
+			const type = await redisClient.TYPE(REDIS_KEY);
+			expect(type).toBe('hash');
+
+			const data = await redisClient.HGETALL(REDIS_KEY);
+			// redis client uses object with null prototype, breaking strict equality
+			// oh my god.
+			expect(structuredClone(data)).toStrictEqual({ deadbeef: '' });
+
+			const ttl = await redisClient.sendCommand([
+				'HPTTL',
+				REDIS_KEY,
+				'FIELDS',
+				'1',
+				'deadbeef',
+			]);
+			if (Array.isArray(ttl) !== true) {
+				throw new TypeError('ttl is not an array');
+			}
+
+			// console.info(ttl[0]);
+
+			expect(ttl[0]).toBeLessThan(10_000);
+			expect(ttl[0]).toBeGreaterThan(9000);
+		});
+
+		test('already migrated', async () => {
+			await redisClient
+				.MULTI()
+				.DEL(REDIS_KEY)
+				.HSET(REDIS_KEY, 'deadbeef', '')
+				.HPEXPIRE(REDIS_KEY, 'deadbeef', 10_000)
+				.EXEC();
+
+			// we use a new factory to test that the "migrated" flag is cleared
+			const ecwtFactory2 = createEcwtFactory();
+
+			const ecwt = await ecwtFactory2.create(
+				{
+					user_id: 1,
+					nick: 'kirick',
+				},
+				{ ttl: 100 },
+			);
+
+			// force migration
+			await ecwtFactory2.verify(ecwt.token);
+
+			const type = await redisClient.TYPE(REDIS_KEY);
+			expect(type).toBe('hash');
+
+			const data = await redisClient.HGETALL(REDIS_KEY);
+			// redis client uses object with null prototype, breaking strict equality
+			// oh my god.
+			expect(structuredClone(data)).toStrictEqual({ deadbeef: '' });
+		});
 	});
 });
