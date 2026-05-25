@@ -292,14 +292,11 @@ export class EcwtFactory<
 			} else {
 				const expires_in_ms = created_at_ms + ttl_initial * 1000 - Date.now();
 				if (expires_in_ms > 0) {
-					await this.#redisClient.sendCommand([
-						'HSET',
-						this.#redis_key_revoked,
-						token_id,
-						'',
-						'PX',
-						String(expires_in_ms),
-					]);
+					await this.#redisClient
+						.MULTI()
+						.HSET(this.#redis_key_revoked, token_id, '')
+						.HPEXPIRE(this.#redis_key_revoked, token_id, expires_in_ms)
+						.EXEC();
 				}
 			}
 		} else {
