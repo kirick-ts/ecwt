@@ -18,11 +18,11 @@ ECWT is module for creating and verifying encrypted CBOR Web Tokens. It is desig
 ECWT depends on other modules, so you need to install them too.
 
 ```sh
-npm install ecwt @kirick/snowflake
+bun install ecwt @kirick/snowflake
 # or
 pnpm install ecwt @kirick/snowflake
 # or
-bun install ecwt @kirick/snowflake
+npm install ecwt @kirick/snowflake
 ```
 
 ### Some dependencies

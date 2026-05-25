@@ -21,13 +21,7 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
   };
 };
 declare class EcwtFactory<const D extends Record<string, unknown> = Record<string, unknown>> {
-  private redisClient;
-  private lruCache;
-  private snowflakeFactory;
-  private redis_key_revoked;
-  private encryption_key;
-  private validator;
-  private cborEncoder;
+  #private;
   constructor({
     redisClient,
     lruCache,
@@ -69,20 +63,11 @@ declare class EcwtFactory<const D extends Record<string, unknown> = Record<strin
     success: false;
     ecwt: Ecwt<D> | null;
   }>;
-  /**
-  * Revokes token.
-  * @param token_id -
-  * @param ts_ms_created -
-  * @param ttl_initial -
-  * @returns -
-  */
-  private _revoke;
-  /** Purges LRU cache. */
-  private _purgeCache;
 }
 //#endregion
 //#region src/token.d.ts
 declare class Ecwt<const D extends Record<string, unknown> = Record<string, unknown>> {
+  #private;
   /** Token string representation. */
   readonly token: string;
   /** Token ID. */
@@ -91,8 +76,6 @@ declare class Ecwt<const D extends Record<string, unknown> = Record<string, unkn
   readonly snowflake: Snowflake;
   /** Data stored in token. */
   readonly data: Readonly<D>;
-  private ecwtFactory;
-  private ttl_initial;
   /**
   * @param ecwtFactory -
   * @param options -

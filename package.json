@@ -1,6 +1,6 @@
 {
 	"name": "ecwt",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Encrypted CBOR Web Token",
 	"publishConfig": {
 		"access": "public"
@@ -42,7 +42,7 @@
 		"typescript": "6.0.2",
 		"unplugin-unused": "0.5.7",
 		"valibot": "1.4.0",
-		"vitest": "4.1.6"
+		"vitest": "4.1.7"
 	},
 	"scripts": {
 		"build": "tsdown src/main.ts --format esm --format cjs --dts --publint --unused",

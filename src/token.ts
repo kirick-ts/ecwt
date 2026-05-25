@@ -12,8 +12,8 @@ export class Ecwt<
 	readonly snowflake: Snowflake;
 	/** Data stored in token. */
 	readonly data: Readonly<D>;
-	private ecwtFactory: EcwtFactory;
-	private ttl_initial: number | null;
+	#ecwtFactory: EcwtFactory;
+	#ttl_initial: number | null;
 
 	/**
 	 * @param ecwtFactory -
@@ -37,8 +37,8 @@ export class Ecwt<
 		this.snowflake = options.snowflake;
 		this.data = Object.freeze(options.data);
 
-		this.ecwtFactory = ecwtFactory;
-		this.ttl_initial = options.ttl_initial;
+		this.#ecwtFactory = ecwtFactory;
+		this.#ttl_initial = options.ttl_initial;
 	}
 
 	/**
@@ -46,11 +46,11 @@ export class Ecwt<
 	 * @returns -
 	 */
 	get ts_expired(): number | null {
-		if (this.ttl_initial === null) {
+		if (this.#ttl_initial === null) {
 			return null;
 		}
 
-		return Math.floor(this.snowflake.timestamp / 1000) + this.ttl_initial;
+		return Math.floor(this.snowflake.timestamp / 1000) + this.#ttl_initial;
 	}
 
 	/**
@@ -58,23 +58,22 @@ export class Ecwt<
 	 * @returns -
 	 */
 	getTTL(): number | null {
-		if (this.ttl_initial === null) {
+		if (this.#ttl_initial === null) {
 			return null;
 		}
 
 		return (
-			this.ttl_initial
+			this.#ttl_initial
 			- Math.floor((Date.now() - this.snowflake.timestamp) / 1000)
 		);
 	}
 
 	/** Revokes token. */
 	revoke(): Promise<void> {
-		// @ts-expect-error Accessing private method
-		return this.ecwtFactory._revoke(
+		return this.#ecwtFactory._revoke(
 			this.id,
 			this.snowflake.timestamp,
-			this.ttl_initial,
+			this.#ttl_initial,
 		);
 	}
 }
