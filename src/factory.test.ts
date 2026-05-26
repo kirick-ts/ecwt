@@ -24,6 +24,14 @@ const redisClient = createClient({
 await redisClient.connect();
 await redisClient.flushAll();
 
+const dataSchema = v.strictObject({
+	user_id: v.pipe(v.number(), v.maxValue(10)),
+	nick: v.pipe(v.string(), v.maxLength(10)),
+});
+const validator = v.parser(dataSchema);
+
+type Data = v.InferOutput<typeof dataSchema>;
+
 const lruCache = new LRUCache<string, LRUCacheValue>({ max: 100 });
 
 const snowflakeFactory = new SnowflakeFactory({
@@ -35,13 +43,6 @@ const key = Buffer.from(
 	'54RoavO+7orGGCKqLXcMwNGFGbcnSEq22f9bJX3lT9lgEPSaRAMBaEnHgMQPTPXcifFvGZmDGzOFqUMfqXsAhQ==',
 	'base64',
 );
-
-const dataSchema = v.strictObject({
-	user_id: v.pipe(v.number(), v.maxValue(10)),
-	nick: v.pipe(v.string(), v.maxLength(10)),
-});
-
-const validator = v.parser(dataSchema);
 
 function createEcwtFactory() {
 	return new EcwtFactory({
@@ -69,7 +70,7 @@ async function measureTime(
 }
 
 describe('create token', () => {
-	let ecwt: Ecwt | undefined;
+	let ecwt: Ecwt<Data> | undefined;
 
 	test('create', async () => {
 		const ts_expired = Math.floor(Date.now() / 1000) + 10;

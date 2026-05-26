@@ -1,5 +1,6 @@
 import { Encoder, decode, encode } from "cbor-x";
 import { decrypt, v2 } from "evilcrypt";
+import * as v from "valibot";
 import basex from "base-x";
 //#region src/errors.ts
 /** Error thrown when string token cannot be parsed to Ecwt. */
@@ -58,7 +59,6 @@ var Ecwt = class {
 	* @returns -
 	*/
 	get ts_expired() {
-		if (this.#ttl_initial === null) return null;
 		return Math.floor(this.snowflake.timestamp / 1e3) + this.#ttl_initial;
 	}
 	/**
@@ -66,7 +66,6 @@ var Ecwt = class {
 	* @returns -
 	*/
 	getTTL() {
-		if (this.#ttl_initial === null) return null;
 		return this.#ttl_initial - Math.floor((Date.now() - this.snowflake.timestamp) / 1e3);
 	}
 	/** Revokes token. */
@@ -80,6 +79,11 @@ const base62 = basex("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv
 //#endregion
 //#region src/factory.ts
 const REDIS_PREFIX = "@ecwt:";
+const tokenSchema = v.tuple([
+	v.pipe(v.unknown(), v.check((value) => Buffer.isBuffer(value)), v.transform((value) => value)),
+	v.number(),
+	v.record(v.string(), v.unknown())
+]);
 var EcwtFactory = class {
 	#redisClient;
 	#lruCache;
@@ -105,13 +109,12 @@ var EcwtFactory = class {
 	* @param options.ttl - Time to live in seconds. If not defined, token will never expire.
 	* @returns -
 	*/
-	async create(data, options = {}) {
+	async create(data, options) {
 		if (typeof this.#validator === "function") data = this.#validator(data);
-		const ttl = options.ttl ?? null;
 		const snowflake = await this.#snowflakeFactory.createSafe();
 		const payload = [
 			snowflake.toBuffer(),
-			ttl,
+			options.ttl,
 			data
 		];
 		const token_raw = this.#cborEncoder ? this.#cborEncoder.encode(payload) : encode(payload);
@@ -119,13 +122,13 @@ var EcwtFactory = class {
 		const token = base62.encode(token_encrypted);
 		this.setCache(token, {
 			snowflake,
-			ttl_initial: ttl,
+			ttl_initial: options.ttl,
 			data
 		});
 		return new Ecwt(this, {
 			token,
 			snowflake,
-			ttl_initial: ttl,
+			ttl_initial: options.ttl,
 			data
 		});
 	}
@@ -136,7 +139,7 @@ var EcwtFactory = class {
 	*/
 	setCache(token, cache_value) {
 		var _this$lruCache;
-		(_this$lruCache = this.#lruCache) === null || _this$lruCache === void 0 || _this$lruCache.set(token, cache_value, cache_value.ttl_initial === null ? void 0 : { ttl: cache_value.ttl_initial * 1e3 });
+		(_this$lruCache = this.#lruCache) === null || _this$lruCache === void 0 || _this$lruCache.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
 	}
 	/**
 	* Parses token.
@@ -158,28 +161,34 @@ var EcwtFactory = class {
 			} catch {
 				throw new EcwtParseError();
 			}
-			const payload = this.#cborEncoder ? this.#cborEncoder.decode(token_raw) : decode(token_raw);
-			const [snowflake_buffer] = payload;
-			[, ttl_initial, data] = payload;
+			const payload = v.parse(tokenSchema, this.#cborEncoder ? this.#cborEncoder.decode(token_raw) : decode(token_raw));
+			const snowflake_buffer = payload[0];
+			ttl_initial = payload[1];
+			const data_raw = payload[2];
 			snowflake = this.#snowflakeFactory.parse(snowflake_buffer);
 			if (typeof this.#validator === "function") try {
-				data = this.#validator(data);
+				data = this.#validator(data_raw);
 			} catch {
 				throw new EcwtParseError();
 			}
+			else data = data_raw;
 			this.setCache(token, {
 				snowflake,
 				ttl_initial,
 				data
 			});
-		} else ({snowflake, ttl_initial, data} = cached_entry.value);
+		} else {
+			snowflake = cached_entry.value.snowflake;
+			ttl_initial = cached_entry.value.ttl_initial;
+			data = cached_entry.value.data;
+		}
 		const ecwt = new Ecwt(this, {
 			token,
 			snowflake,
 			ttl_initial,
 			data
 		});
-		if (typeof ttl_initial === "number" && Number.isNaN(ttl_initial) !== true && snowflake.timestamp + ttl_initial * 1e3 < Date.now()) throw new EcwtExpiredError(ecwt);
+		if (snowflake.timestamp + ttl_initial * 1e3 < Date.now()) throw new EcwtExpiredError(ecwt);
 		if (this.#redisClient) {
 			await this.#migrateExpired();
 			if (await this.#redisClient.HEXISTS(this.#redis_key_revoked, ecwt.id)) throw new EcwtRevokedError(ecwt);
@@ -222,11 +231,8 @@ var EcwtFactory = class {
 	async _revoke(token_id, created_at_ms, ttl_initial) {
 		if (this.#redisClient) {
 			await this.#migrateExpired();
-			if (ttl_initial === null) await this.#redisClient.HSET(this.#redis_key_revoked, token_id, "");
-			else {
-				const expires_in_ms = created_at_ms + ttl_initial * 1e3 - Date.now();
-				if (expires_in_ms > 0) await this.#redisClient.MULTI().HSET(this.#redis_key_revoked, token_id, "").HPEXPIRE(this.#redis_key_revoked, token_id, expires_in_ms).EXEC();
-			}
+			const expires_in_ms = created_at_ms + ttl_initial * 1e3 - Date.now();
+			if (expires_in_ms > 0) await this.#redisClient.MULTI().HSET(this.#redis_key_revoked, token_id, "").HPEXPIRE(this.#redis_key_revoked, token_id, expires_in_ms).EXEC();
 		} else console.warn("[ecwt] Redis client is not provided. Tokens cannot be revoked.");
 	}
 	#migrated = false;

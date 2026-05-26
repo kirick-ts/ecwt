@@ -12,8 +12,8 @@ export class Ecwt<
 	readonly snowflake: Snowflake;
 	/** Data stored in token. */
 	readonly data: Readonly<D>;
-	#ecwtFactory: EcwtFactory;
-	#ttl_initial: number | null;
+	#ecwtFactory: EcwtFactory<D>;
+	#ttl_initial: number;
 
 	/**
 	 * @param ecwtFactory -
@@ -24,11 +24,11 @@ export class Ecwt<
 	 * @param options.data Data stored in token.
 	 */
 	constructor(
-		ecwtFactory: EcwtFactory,
+		ecwtFactory: EcwtFactory<D>,
 		options: {
 			token: string;
 			snowflake: Snowflake;
-			ttl_initial: number | null;
+			ttl_initial: number;
 			data: D;
 		},
 	) {
@@ -45,11 +45,7 @@ export class Ecwt<
 	 * Unix timestamp of token expiration in seconds.
 	 * @returns -
 	 */
-	get ts_expired(): number | null {
-		if (this.#ttl_initial === null) {
-			return null;
-		}
-
+	get ts_expired(): number {
 		return Math.floor(this.snowflake.timestamp / 1000) + this.#ttl_initial;
 	}
 
@@ -57,11 +53,7 @@ export class Ecwt<
 	 * Actual time to live in seconds.
 	 * @returns -
 	 */
-	getTTL(): number | null {
-		if (this.#ttl_initial === null) {
-			return null;
-		}
-
+	getTTL(): number {
 		return (
 			this.#ttl_initial
 			- Math.floor((Date.now() - this.snowflake.timestamp) / 1000)
