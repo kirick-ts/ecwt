@@ -95,13 +95,13 @@ export class EcwtFactory<
 	 * @async
 	 * @param data - Data to be stored in token.
 	 * @param options -
-	 * @param options.ttl - Time to live in seconds. If not defined, token will never expire.
+	 * @param options.ttl - Time to live in **seconds**.
 	 * @returns -
 	 */
 	async create(
 		data: D,
 		options: {
-			/** Time to live in seconds. If not defined, token will never expire. */
+			/** Time to live in **seconds**. */
 			ttl: number;
 		},
 	): Promise<Ecwt<D>> {

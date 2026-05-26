@@ -68,7 +68,7 @@ var Ecwt = class {
 	* @param options -
 	* @param options.token String representation of token.
 	* @param options.snowflake -
-	* @param options.ttl_initial Time to live in seconds at the moment of token creation.
+	* @param options.ttl_initial Time to live in **seconds** at the moment of token creation.
 	* @param options.data Data stored in token.
 	*/
 	constructor(ecwtFactory, options) {
@@ -80,14 +80,14 @@ var Ecwt = class {
 		this.#ttl_initial = options.ttl_initial;
 	}
 	/**
-	* Unix timestamp of token expiration in seconds.
+	* Unix timestamp of token expiration in **seconds**.
 	* @returns -
 	*/
 	get ts_expired() {
 		return Math.floor(this.snowflake.timestamp / 1e3) + this.#ttl_initial;
 	}
 	/**
-	* Actual time to live in seconds.
+	* Actual time to live in **seconds**.
 	* @returns -
 	*/
 	getTTL() {
@@ -131,7 +131,7 @@ var EcwtFactory = class {
 	* @async
 	* @param data - Data to be stored in token.
 	* @param options -
-	* @param options.ttl - Time to live in seconds. If not defined, token will never expire.
+	* @param options.ttl - Time to live in **seconds**.
 	* @returns -
 	*/
 	async create(data, options) {

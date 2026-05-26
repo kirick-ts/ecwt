@@ -20,7 +20,7 @@ export class Ecwt<
 	 * @param options -
 	 * @param options.token String representation of token.
 	 * @param options.snowflake -
-	 * @param options.ttl_initial Time to live in seconds at the moment of token creation.
+	 * @param options.ttl_initial Time to live in **seconds** at the moment of token creation.
 	 * @param options.data Data stored in token.
 	 */
 	constructor(
@@ -42,7 +42,7 @@ export class Ecwt<
 	}
 
 	/**
-	 * Unix timestamp of token expiration in seconds.
+	 * Unix timestamp of token expiration in **seconds**.
 	 * @returns -
 	 */
 	get ts_expired(): number {
@@ -50,7 +50,7 @@ export class Ecwt<
 	}
 
 	/**
-	 * Actual time to live in seconds.
+	 * Actual time to live in **seconds**.
 	 * @returns -
 	 */
 	getTTL(): number {

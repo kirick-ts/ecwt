@@ -33,11 +33,11 @@ declare class EcwtFactory<const D extends Record<string, unknown> = Record<strin
   * @async
   * @param data - Data to be stored in token.
   * @param options -
-  * @param options.ttl - Time to live in seconds. If not defined, token will never expire.
+  * @param options.ttl - Time to live in **seconds**.
   * @returns -
   */
   create(data: D, options: {
-    /** Time to live in seconds. If not defined, token will never expire. */ttl: number;
+    /** Time to live in **seconds**. */ttl: number;
   }): Promise<Ecwt<D>>;
   /**
   * Sets data to cache.
@@ -81,7 +81,7 @@ declare class Ecwt<const D extends Record<string, unknown> = Record<string, unkn
   * @param options -
   * @param options.token String representation of token.
   * @param options.snowflake -
-  * @param options.ttl_initial Time to live in seconds at the moment of token creation.
+  * @param options.ttl_initial Time to live in **seconds** at the moment of token creation.
   * @param options.data Data stored in token.
   */
   constructor(ecwtFactory: EcwtFactory<D>, options: {
@@ -91,12 +91,12 @@ declare class Ecwt<const D extends Record<string, unknown> = Record<string, unkn
     data: D;
   });
   /**
-  * Unix timestamp of token expiration in seconds.
+  * Unix timestamp of token expiration in **seconds**.
   * @returns -
   */
   get ts_expired(): number;
   /**
-  * Actual time to live in seconds.
+  * Actual time to live in **seconds**.
   * @returns -
   */
   getTTL(): number;
