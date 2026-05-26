@@ -9,7 +9,7 @@ ECWT is module for creating and verifying encrypted CBOR Web Tokens. It is desig
 | --- | --- | --- |
 | Encoding | 🧐 JSON with base64 | ✅ CBOR <br> 2x smaller output |
 | Binary data | 🧐 Double base64 encoding | ✅ Supported out of the box |
-| Security | 📝 Signed <br> Payload is readable by everyone | 🔒 Encrypted <br> Payload is readable only by the private key possessor |
+| Security | 📝 Signed <br> Payload is readable by everyone | 🔒 Encrypted <br> Payload is readable only with private key |
 | Metadata | ➕ Type and algorithm, increases size | ✅ No unnecessary metadata |
 | Revocation | 🧑‍💻 Requires additional implementation | ✅ Included with Redis |
 
