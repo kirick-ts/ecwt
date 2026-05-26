@@ -1,6 +1,6 @@
 {
 	"name": "ecwt",
-	"version": "0.3.3",
+	"version": "0.4.0",
 	"description": "Encrypted CBOR Web Token",
 	"publishConfig": {
 		"access": "public"
@@ -24,7 +24,8 @@
 	"dependencies": {
 		"base-x": "5.0.1",
 		"cbor-x": "1.5.6",
-		"evilcrypt": "0.2.3"
+		"evilcrypt": "0.2.3",
+		"valibot": "1.4.1"
 	},
 	"peerDependencies": {
 		"@kirick/snowflake": "^0.3",
@@ -41,7 +42,6 @@
 		"tsdown": "0.21.10",
 		"typescript": "6.0.2",
 		"unplugin-unused": "0.5.7",
-		"valibot": "1.4.0",
 		"vitest": "4.1.7"
 	},
 	"scripts": {

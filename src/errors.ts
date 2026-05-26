@@ -8,20 +8,24 @@ export class EcwtParseError extends Error {
 }
 
 /** Error thrown when parsed Ecwt is invalid. */
-export class EcwtInvalidError extends Error {
+export class EcwtInvalidError<D extends Record<string, unknown>> extends Error {
 	override message = 'Ecwt token is invalid.';
 
-	constructor(readonly ecwt: Ecwt) {
+	constructor(readonly ecwt: Ecwt<D>) {
 		super();
 	}
 }
 
 /** Error thrown when parsed Ecwt is expired. */
-export class EcwtExpiredError extends EcwtInvalidError {
+export class EcwtExpiredError<
+	D extends Record<string, unknown>,
+> extends EcwtInvalidError<D> {
 	override message = 'Ecwt is expired.';
 }
 
 /** Error thrown when parsed Ecwt is revoked. */
-export class EcwtRevokedError extends EcwtInvalidError {
+export class EcwtRevokedError<
+	D extends Record<string, unknown>,
+> extends EcwtInvalidError<D> {
 	override message = 'Ecwt is revoked.';
 }

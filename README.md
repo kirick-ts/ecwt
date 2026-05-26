@@ -9,7 +9,7 @@ ECWT is module for creating and verifying encrypted CBOR Web Tokens. It is desig
 | --- | --- | --- |
 | Encoding | 🧐 JSON with base64 | ✅ CBOR <br> 2x smaller output |
 | Binary data | 🧐 Double base64 encoding | ✅ Supported out of the box |
-| Security | 📝 Signed <br> Payload is readable by everyone | 🔒 Encrypted <br> Payload is readable only by the private key possessor |
+| Security | 📝 Signed <br> Payload is readable by everyone | 🔒 Encrypted <br> Payload is readable only with private key |
 | Metadata | ➕ Type and algorithm, increases size | ✅ No unnecessary metadata |
 | Revocation | 🧑‍💻 Requires additional implementation | ✅ Included with Redis |
 
@@ -168,10 +168,6 @@ console.log(`Expiration timestamp: ${ecwt.ts_expired}`);
 console.log(`Remaining validity: ${ecwt.getTTL()} seconds`);
 ```
 
-> **Warning regarding non-expiring tokens:**
->
-> When using `ttl: null`, revoked tokens remain in Redis storage indefinitely. This can lead to uncontrolled database growth over time as these tokens are never automatically purged. Consider implementing a periodic cleanup strategy if non-expiring tokens are required.
-
 ### Token Verification
 
 Implement verification with appropriate error handling:
@@ -252,7 +248,7 @@ try {
 
 ### Advanced: Token Size Optimization
 
-To reduce token size, use SenML key mapping that replaces string object keys with numeric identifiers throughout your entire payload structure. This compression works at any nesting depth. When implementing, catalog all potential keys across your schema and assign consistent numeric values to each, as these mappings cannot be changed once tokens are in circulation.
+To reduce token size, use SenML key mapping that replaces string object keys with numeric identifiers throughout your entire payload structure. This compression works at any nesting depth.
 
 > **Important:** The SenML key mapping configuration establishes a permanent relationship between field names and their numeric identifiers. Once deployed, these mappings must remain consistent to maintain compatibility with existing tokens. Adding new fields is acceptable, but changing existing mappings can break previously issued tokens.
 
