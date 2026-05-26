@@ -232,7 +232,7 @@ var EcwtFactory = class {
 	#migrated = false;
 	async #migrateExpired() {
 		if (this.#redisClient && !this.#migrated) {
-			await this.#redisClient.EVAL("local key = KEYS[1] if redis.call(\"TYPE\", key)[\"ok\"] ~= \"zset\" then return end local key_hash = key .. \":hash\" local ts_now = tonumber(ARGV[1]) local cursor = \"0\" repeat local scan = redis.call(\"ZSCAN\", key, cursor, \"COUNT\", 1000) cursor = scan[1] local items = scan[2] for i = 1, #items, 2 do local field = items[i] local expire_at = tonumber(items[i + 1]) local expire_in = expire_at and expire_at - ts_now if expire_in and expire_in > 0 then redis.call(\"HSET\", key_hash, field, \"\") redis.call(\"HPEXPIRE\", key_hash, expire_in, \"FIELDS\", 1, field) end end until cursor == \"0\" redis.call(\"DEL\", key) redis.call(\"RENAME\", key_hash, key)", {
+			await this.#redisClient.EVAL("local key = KEYS[1] if redis.call(\"TYPE\", key)[\"ok\"] ~= \"zset\" then return end local key_hash = key .. \":hash\" local ts_now = tonumber(ARGV[1]) local cursor = \"0\" repeat local scan = redis.call(\"ZSCAN\", key, cursor, \"COUNT\", 1000) cursor = scan[1] local items = scan[2] for i = 1, #items, 2 do local field = items[i] local expire_at = tonumber(items[i + 1]) local expire_in = expire_at and expire_at - ts_now if expire_in and expire_in > 0 then redis.call(\"HSET\", key_hash, field, \"\") redis.call(\"HPEXPIRE\", key_hash, expire_in, \"FIELDS\", 1, field) end end until cursor == \"0\" redis.call(\"DEL\", key) if redis.call(\"EXISTS\", key_hash) == 1 then redis.call(\"RENAME\", key_hash, key) end", {
 				keys: [this.#redis_key_revoked],
 				arguments: [String(Date.now())]
 			});
