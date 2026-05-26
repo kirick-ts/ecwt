@@ -12,6 +12,7 @@ import type {
 	RedisModules,
 	RedisScripts,
 } from 'redis';
+import * as v from 'valibot';
 import {
 	EcwtExpiredError,
 	EcwtInvalidError,
@@ -23,7 +24,7 @@ import { base62 } from './utils.js';
 
 export type LRUCacheValue = {
 	snowflake: Snowflake;
-	ttl_initial: number | null;
+	ttl_initial: number;
 	data: Record<string, unknown>;
 };
 type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
@@ -47,17 +48,26 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 };
 
 const REDIS_PREFIX = '@ecwt:';
+const tokenSchema = v.tuple([
+	v.pipe(
+		v.unknown(),
+		v.check((value) => Buffer.isBuffer(value)),
+		v.transform((value) => value as Buffer<ArrayBufferLike>),
+	),
+	v.number(),
+	v.record(v.string(), v.unknown()),
+]);
 
 export class EcwtFactory<
 	const D extends Record<string, unknown> = Record<string, unknown>,
 > {
-	private redisClient: RedisClient | undefined;
-	private lruCache: LRUCache<string, LRUCacheValue> | undefined;
-	private snowflakeFactory: SnowflakeFactory;
-	private redis_key_revoked: string;
-	private encryption_key: Buffer;
-	private validator: ((value: unknown) => D) | undefined;
-	private cborEncoder: CborEncoder | null = null;
+	#redisClient: RedisClient | undefined;
+	#lruCache: LRUCache<string, LRUCacheValue> | undefined;
+	#snowflakeFactory: SnowflakeFactory;
+	#redis_key_revoked: string;
+	#encryption_key: Buffer;
+	#validator: ((value: unknown) => D) | undefined;
+	#cborEncoder: CborEncoder | null = null;
 
 	constructor({
 		redisClient,
@@ -65,16 +75,16 @@ export class EcwtFactory<
 		snowflakeFactory,
 		options,
 	}: EcwtFactoryArguments<D>) {
-		this.redisClient = redisClient;
-		this.lruCache = lruCache;
-		this.snowflakeFactory = snowflakeFactory;
+		this.#redisClient = redisClient;
+		this.#lruCache = lruCache;
+		this.#snowflakeFactory = snowflakeFactory;
 
-		this.redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
-		this.encryption_key = options.key;
-		this.validator = options.validator;
+		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
+		this.#encryption_key = options.key;
+		this.#validator = options.validator;
 
 		if (options.senml_key_map) {
-			this.cborEncoder = new CborEncoder({
+			this.#cborEncoder = new CborEncoder({
 				keyMap: options.senml_key_map,
 			});
 		}
@@ -92,37 +102,40 @@ export class EcwtFactory<
 		data: D,
 		options: {
 			/** Time to live in seconds. If not defined, token will never expire. */
-			ttl?: number;
-		} = {},
+			ttl: number;
+		},
 	): Promise<Ecwt<D>> {
-		if (typeof this.validator === 'function') {
-			data = this.validator(data);
+		if (typeof this.#validator === 'function') {
+			data = this.#validator(data);
 		}
 
-		const ttl = options.ttl ?? null;
-		const snowflake = await this.snowflakeFactory.createSafe();
-		const payload = [snowflake.toBuffer(), ttl, data];
-		const token_raw = this.cborEncoder
-			? this.cborEncoder.encode(payload)
+		const snowflake = await this.#snowflakeFactory.createSafe();
+		const payload: v.InferOutput<typeof tokenSchema> = [
+			snowflake.toBuffer(),
+			options.ttl,
+			data,
+		];
+		const token_raw = this.#cborEncoder
+			? this.#cborEncoder.encode(payload)
 			: cborEncode(payload);
 
 		const token_encrypted = await evilcryptV2.encrypt(
 			token_raw,
-			this.encryption_key,
+			this.#encryption_key,
 		);
 
 		const token = base62.encode(token_encrypted);
 
 		this.setCache(token, {
 			snowflake,
-			ttl_initial: ttl,
+			ttl_initial: options.ttl,
 			data,
 		});
 
 		return new Ecwt(this, {
 			token,
 			snowflake,
-			ttl_initial: ttl,
+			ttl_initial: options.ttl,
 			data,
 		});
 	}
@@ -133,15 +146,9 @@ export class EcwtFactory<
 	 * @param cache_value - Data to be stored in cache.
 	 */
 	private setCache(token: string, cache_value: LRUCacheValue) {
-		this.lruCache?.set(
-			token,
-			cache_value,
-			cache_value.ttl_initial === null
-				? undefined
-				: {
-						ttl: cache_value.ttl_initial * 1000,
-					},
-		);
+		this.#lruCache?.set(token, cache_value, {
+			ttl: cache_value.ttl_initial * 1000,
+		});
 	}
 
 	/**
@@ -154,11 +161,11 @@ export class EcwtFactory<
 			throw new TypeError('Token must be a string.');
 		}
 
-		let snowflake;
-		let ttl_initial;
-		let data;
+		let snowflake: Snowflake;
+		let ttl_initial: number;
+		let data: D;
 
-		const cached_entry = this.lruCache?.info(token);
+		const cached_entry = this.#lruCache?.info(token);
 		// token is not cached
 		if (cached_entry === undefined) {
 			const token_encrypted = Buffer.from(base62.decode(token));
@@ -167,27 +174,33 @@ export class EcwtFactory<
 			try {
 				token_raw = await evilcryptDecrypt(
 					token_encrypted,
-					this.encryption_key,
+					this.#encryption_key,
 				);
 			} catch {
 				throw new EcwtParseError();
 			}
 
-			const payload = this.cborEncoder
-				? this.cborEncoder.decode(token_raw)
-				: cborDecode(token_raw);
+			const payload = v.parse(
+				tokenSchema,
+				this.#cborEncoder
+					? this.#cborEncoder.decode(token_raw)
+					: cborDecode(token_raw),
+			);
 
-			const [snowflake_buffer] = payload;
-			[, ttl_initial, data] = payload;
+			const snowflake_buffer = payload[0];
+			ttl_initial = payload[1];
+			const data_raw = payload[2];
 
-			snowflake = this.snowflakeFactory.parse(snowflake_buffer);
+			snowflake = this.#snowflakeFactory.parse(snowflake_buffer);
 
-			if (typeof this.validator === 'function') {
+			if (typeof this.#validator === 'function') {
 				try {
-					data = this.validator(data);
+					data = this.#validator(data_raw);
 				} catch {
 					throw new EcwtParseError();
 				}
+			} else {
+				data = data_raw as D;
 			}
 
 			this.setCache(token, {
@@ -196,7 +209,9 @@ export class EcwtFactory<
 				data,
 			});
 		} else {
-			({ snowflake, ttl_initial, data } = cached_entry.value);
+			snowflake = cached_entry.value.snowflake;
+			ttl_initial = cached_entry.value.ttl_initial;
+			data = cached_entry.value.data as D;
 		}
 
 		// console.log('snowflake', snowflake);
@@ -210,16 +225,16 @@ export class EcwtFactory<
 			data,
 		});
 
-		if (
-			typeof ttl_initial === 'number'
-			&& Number.isNaN(ttl_initial) !== true
-			&& snowflake.timestamp + ttl_initial * 1000 < Date.now()
-		) {
+		if (snowflake.timestamp + ttl_initial * 1000 < Date.now()) {
 			throw new EcwtExpiredError(ecwt);
 		}
 
-		if (await this.redisClient?.HEXISTS(this.redis_key_revoked, ecwt.id)) {
-			throw new EcwtRevokedError(ecwt);
+		if (this.#redisClient) {
+			await this.#migrateExpired();
+
+			if (await this.#redisClient.HEXISTS(this.#redis_key_revoked, ecwt.id)) {
+				throw new EcwtRevokedError(ecwt);
+			}
 		}
 
 		return ecwt;
@@ -269,29 +284,27 @@ export class EcwtFactory<
 
 	/**
 	 * Revokes token.
+	 * @internal
 	 * @param token_id -
-	 * @param ts_ms_created -
+	 * @param created_at_ms -
 	 * @param ttl_initial -
 	 * @returns -
 	 */
-	private async _revoke(
+	async _revoke(
 		token_id: string,
-		ts_ms_created: number,
-		ttl_initial: number | null,
-	) {
-		if (this.redisClient) {
-			ttl_initial ??= Number.MAX_SAFE_INTEGER;
+		created_at_ms: number,
+		ttl_initial: number,
+	): Promise<void> {
+		if (this.#redisClient) {
+			await this.#migrateExpired();
 
-			const ts_ms_expired = ts_ms_created + ttl_initial * 1000;
-			if (ts_ms_expired > Date.now()) {
-				await this.redisClient.sendCommand([
-					'HSET',
-					this.redis_key_revoked,
-					token_id,
-					'',
-					'PX',
-					String(ts_ms_expired - Date.now()),
-				]);
+			const expires_in_ms = created_at_ms + ttl_initial * 1000 - Date.now();
+			if (expires_in_ms > 0) {
+				await this.#redisClient
+					.MULTI()
+					.HSET(this.#redis_key_revoked, token_id, '')
+					.HPEXPIRE(this.#redis_key_revoked, token_id, expires_in_ms)
+					.EXEC();
 			}
 		} else {
 			// oxlint-disable-next-line no-console
@@ -301,8 +314,27 @@ export class EcwtFactory<
 		}
 	}
 
-	/** Purges LRU cache. */
-	private _purgeCache() {
-		this.lruCache?.clear();
+	#migrated = false;
+
+	async #migrateExpired() {
+		if (this.#redisClient && !this.#migrated) {
+			await this.#redisClient.EVAL(
+				'local key = KEYS[1] if redis.call("TYPE", key)["ok"] ~= "zset" then return end local key_hash = key .. ":hash" local ts_now = tonumber(ARGV[1]) local cursor = "0" repeat local scan = redis.call("ZSCAN", key, cursor, "COUNT", 1000) cursor = scan[1] local items = scan[2] for i = 1, #items, 2 do local field = items[i] local expire_at = tonumber(items[i + 1]) local expire_in = expire_at and expire_at - ts_now if expire_in and expire_in > 0 then redis.call("HSET", key_hash, field, "") redis.call("HPEXPIRE", key_hash, expire_in, "FIELDS", 1, field) end end until cursor == "0" redis.call("DEL", key) if redis.call("EXISTS", key_hash) == 1 then redis.call("RENAME", key_hash, key) end',
+				{
+					keys: [this.#redis_key_revoked],
+					arguments: [String(Date.now())],
+				},
+			);
+
+			this.#migrated = true;
+		}
+	}
+
+	/**
+	 * @internal
+	 * Purges LRU cache.
+	 */
+	_purgeCache() {
+		this.#lruCache?.clear();
 	}
 }

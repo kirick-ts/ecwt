@@ -12,8 +12,8 @@ export class Ecwt<
 	readonly snowflake: Snowflake;
 	/** Data stored in token. */
 	readonly data: Readonly<D>;
-	private ecwtFactory: EcwtFactory;
-	private ttl_initial: number | null;
+	#ecwtFactory: EcwtFactory<D>;
+	#ttl_initial: number;
 
 	/**
 	 * @param ecwtFactory -
@@ -24,11 +24,11 @@ export class Ecwt<
 	 * @param options.data Data stored in token.
 	 */
 	constructor(
-		ecwtFactory: EcwtFactory,
+		ecwtFactory: EcwtFactory<D>,
 		options: {
 			token: string;
 			snowflake: Snowflake;
-			ttl_initial: number | null;
+			ttl_initial: number;
 			data: D;
 		},
 	) {
@@ -37,44 +37,35 @@ export class Ecwt<
 		this.snowflake = options.snowflake;
 		this.data = Object.freeze(options.data);
 
-		this.ecwtFactory = ecwtFactory;
-		this.ttl_initial = options.ttl_initial;
+		this.#ecwtFactory = ecwtFactory;
+		this.#ttl_initial = options.ttl_initial;
 	}
 
 	/**
 	 * Unix timestamp of token expiration in seconds.
 	 * @returns -
 	 */
-	get ts_expired(): number | null {
-		if (this.ttl_initial === null) {
-			return null;
-		}
-
-		return Math.floor(this.snowflake.timestamp / 1000) + this.ttl_initial;
+	get ts_expired(): number {
+		return Math.floor(this.snowflake.timestamp / 1000) + this.#ttl_initial;
 	}
 
 	/**
 	 * Actual time to live in seconds.
 	 * @returns -
 	 */
-	getTTL(): number | null {
-		if (this.ttl_initial === null) {
-			return null;
-		}
-
+	getTTL(): number {
 		return (
-			this.ttl_initial
+			this.#ttl_initial
 			- Math.floor((Date.now() - this.snowflake.timestamp) / 1000)
 		);
 	}
 
 	/** Revokes token. */
 	revoke(): Promise<void> {
-		// @ts-expect-error Accessing private method
-		return this.ecwtFactory._revoke(
+		return this.#ecwtFactory._revoke(
 			this.id,
 			this.snowflake.timestamp,
-			this.ttl_initial,
+			this.#ttl_initial,
 		);
 	}
 }
