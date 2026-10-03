@@ -196,7 +196,6 @@ describe('create token', () => {
 
 		const ecwtFactorySenml = new EcwtFactory({
 			redisClient,
-			lruCache,
 			snowflakeFactory,
 			options: {
 				namespace: 'test',
@@ -216,7 +215,7 @@ describe('create token', () => {
 			},
 			{ ttl: 10 },
 		);
-		const ecwt_senml_verified = await ecwtFactorySenml.verify(ecwt.token);
+		const ecwt_senml_verified = await ecwtFactorySenml.verify(ecwt_senml.token);
 
 		expect(ecwt_senml.data).toStrictEqual(ecwt_senml_verified.data);
 		expect(ecwt_senml.token.length).toBeLessThan(ecwt.token.length);
