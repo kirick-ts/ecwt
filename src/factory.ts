@@ -1,10 +1,11 @@
 import type { Snowflake, SnowflakeFactory } from '@kirick/snowflake';
+import { aessiv } from '@noble/ciphers/aes.js';
 import {
 	Encoder as CborEncoder,
 	decode as cborDecode,
 	encode as cborEncode,
 } from 'cbor-x';
-import { decrypt as evilcryptDecrypt, v2 as evilcryptV2 } from 'evilcrypt';
+import { decrypt as evilcryptDecrypt } from 'evilcrypt';
 import type { LRUCache } from 'lru-cache';
 import type {
 	RedisClientType,
@@ -119,11 +120,10 @@ export class EcwtFactory<
 			? this.#cborEncoder.encode(payload)
 			: cborEncode(payload);
 
-		const token_encrypted = await evilcryptV2.encrypt(
-			token_raw,
-			this.#encryption_key,
-		);
-
+		const token_encrypted = Buffer.concat([
+			Buffer.from([0xf0]),
+			aessiv(this.#encryption_key).encrypt(token_raw),
+		]);
 		const token = base62.encode(token_encrypted);
 
 		this.setCache(token, {
@@ -172,10 +172,14 @@ export class EcwtFactory<
 
 			let token_raw;
 			try {
-				token_raw = await evilcryptDecrypt(
-					token_encrypted,
-					this.#encryption_key,
-				);
+				token_raw =
+					token_encrypted[0] === 0xf0
+						? Buffer.from(
+								aessiv(this.#encryption_key).decrypt(
+									token_encrypted.subarray(1),
+								),
+							)
+						: await evilcryptDecrypt(token_encrypted, this.#encryption_key);
 			} catch {
 				throw new EcwtParseError();
 			}
@@ -290,6 +294,7 @@ export class EcwtFactory<
 	 * @param ttl_initial -
 	 * @returns -
 	 */
+	// eslint-disable-next-line unicorn/prefer-private-class-fields
 	async _revoke(
 		token_id: string,
 		created_at_ms: number,
@@ -331,10 +336,11 @@ export class EcwtFactory<
 	}
 
 	/**
-	 * @internal
 	 * Purges LRU cache.
+	 * @internal
 	 */
-	_purgeCache() {
+	// eslint-disable-next-line unicorn/prefer-private-class-fields
+	_purgeCache(): void {
 		this.#lruCache?.clear();
 	}
 }

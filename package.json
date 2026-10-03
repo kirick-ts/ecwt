@@ -1,6 +1,6 @@
 {
 	"name": "ecwt",
-	"version": "0.4.0",
+	"version": "0.4.1-dev",
 	"description": "Encrypted CBOR Web Token",
 	"publishConfig": {
 		"access": "public"
@@ -19,9 +19,10 @@
 		}
 	},
 	"engines": {
-		"node": ">=16"
+		"node": ">=22.13"
 	},
 	"dependencies": {
+		"@noble/ciphers": "2.4.0",
 		"base-x": "5.0.1",
 		"cbor-x": "1.5.6",
 		"evilcrypt": "0.2.3",
@@ -33,21 +34,20 @@
 		"redis": "^4.6"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.10",
-		"@kirick/lint": "0.3.0",
+		"@biomejs/biome": "2.5.4",
+		"@kirick/lint": "0.4.1",
 		"@types/node": "22.14.1",
-		"eslint": "10.2.0",
-		"oxlint": "1.58.0",
-		"publint": "0.3.18",
-		"tsdown": "0.21.10",
-		"typescript": "6.0.2",
-		"unplugin-unused": "0.5.7",
-		"vitest": "4.1.7"
+		"eslint": "10.7.0",
+		"oxlint": "1.74.0",
+		"publint": "0.3.25",
+		"tsdown": "0.23.0",
+		"typescript": "6.0.3",
+		"unplugin-unused": "0.6.0",
+		"vitest": "5.0.3"
 	},
 	"scripts": {
 		"build": "tsdown src/main.ts --format esm --format cjs --dts --publint --unused",
-		"check": "bun run lint && bun run build && bun run test",
-		"lint": "biome format && oxlint && eslint . && tsc",
+		"check": "bun lint && bun run test && bun run build",
 		"redis:up": "docker ps | grep test-redis >/dev/null || docker run --rm -d -p 16379:6379 --name test-redis redis:7-alpine",
 		"test": "bun run redis:up && bun test && npm run test:vitest",
 		"test:vitest": "vitest run --no-file-parallelism"

@@ -16,11 +16,12 @@ var __copyProps = (to, from, except, desc) => {
 	}
 	return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", {
 	value: mod,
 	enumerable: true
 }) : target, mod));
 //#endregion
+let _noble_ciphers_aes_js = require("@noble/ciphers/aes.js");
 let cbor_x = require("cbor-x");
 let evilcrypt = require("evilcrypt");
 let valibot = require("valibot");
@@ -36,6 +37,7 @@ var EcwtParseError = class extends Error {
 };
 /** Error thrown when parsed Ecwt is invalid. */
 var EcwtInvalidError = class extends Error {
+	ecwt;
 	message = "Ecwt token is invalid.";
 	constructor(ecwt) {
 		super();
@@ -143,7 +145,7 @@ var EcwtFactory = class {
 			data
 		];
 		const token_raw = this.#cborEncoder ? this.#cborEncoder.encode(payload) : (0, cbor_x.encode)(payload);
-		const token_encrypted = await evilcrypt.v2.encrypt(token_raw, this.#encryption_key);
+		const token_encrypted = Buffer.concat([Buffer.from([240]), (0, _noble_ciphers_aes_js.aessiv)(this.#encryption_key).encrypt(token_raw)]);
 		const token = base62.encode(token_encrypted);
 		this.setCache(token, {
 			snowflake,
@@ -163,8 +165,7 @@ var EcwtFactory = class {
 	* @param cache_value - Data to be stored in cache.
 	*/
 	setCache(token, cache_value) {
-		var _this$lruCache;
-		(_this$lruCache = this.#lruCache) === null || _this$lruCache === void 0 || _this$lruCache.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
+		this.#lruCache?.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
 	}
 	/**
 	* Parses token.
@@ -172,17 +173,16 @@ var EcwtFactory = class {
 	* @returns -
 	*/
 	async verify(token) {
-		var _this$lruCache2;
 		if (typeof token !== "string") throw new TypeError("Token must be a string.");
 		let snowflake;
 		let ttl_initial;
 		let data;
-		const cached_entry = (_this$lruCache2 = this.#lruCache) === null || _this$lruCache2 === void 0 ? void 0 : _this$lruCache2.info(token);
+		const cached_entry = this.#lruCache?.info(token);
 		if (cached_entry === void 0) {
 			const token_encrypted = Buffer.from(base62.decode(token));
 			let token_raw;
 			try {
-				token_raw = await (0, evilcrypt.decrypt)(token_encrypted, this.#encryption_key);
+				token_raw = token_encrypted[0] === 240 ? Buffer.from((0, _noble_ciphers_aes_js.aessiv)(this.#encryption_key).decrypt(token_encrypted.subarray(1))) : await (0, evilcrypt.decrypt)(token_encrypted, this.#encryption_key);
 			} catch {
 				throw new EcwtParseError();
 			}
@@ -271,12 +271,11 @@ var EcwtFactory = class {
 		}
 	}
 	/**
-	* @internal
 	* Purges LRU cache.
+	* @internal
 	*/
 	_purgeCache() {
-		var _this$lruCache3;
-		(_this$lruCache3 = this.#lruCache) === null || _this$lruCache3 === void 0 || _this$lruCache3.clear();
+		this.#lruCache?.clear();
 	}
 };
 //#endregion

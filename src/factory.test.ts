@@ -5,7 +5,7 @@ import { SnowflakeFactory } from '@kirick/snowflake';
 import { LRUCache } from 'lru-cache';
 import { createClient } from 'redis';
 import * as v from 'valibot';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { LRUCacheValue } from './factory.js';
 import {
 	Ecwt,
@@ -15,6 +15,7 @@ import {
 	EcwtParseError,
 	EcwtRevokedError,
 } from './main.js';
+import { base62 } from './utils.js';
 
 const redisClient = createClient({
 	socket: {
@@ -59,16 +60,6 @@ function createEcwtFactory() {
 
 const ecwtFactory = createEcwtFactory();
 
-async function measureTime(
-	fn: (...args: unknown[]) => unknown,
-): Promise<number> {
-	const start = performance.now();
-	await fn();
-	const end = performance.now();
-
-	return end - start;
-}
-
 describe('create token', () => {
 	let ecwt: Ecwt<Data> | undefined;
 
@@ -85,6 +76,7 @@ describe('create token', () => {
 
 		expect(ecwt).toBeInstanceOf(Ecwt);
 		expect(typeof ecwt.token).toBe('string');
+		expect(base62.decode(ecwt.token)[0]).toBe(0xf0);
 		// console.log('token', ecwt.token);
 		expect(ecwt.ts_expired).toBe(ts_expired);
 		expect(ecwt.getTTL()).toBe(10);
@@ -131,9 +123,15 @@ describe('create token', () => {
 			expect.unreachable();
 		}
 
-		ecwtFactory._purgeCache();
+		const validate = vi.fn(validator);
+		const verifier = new EcwtFactory({
+			snowflakeFactory,
+			options: { key, validator: validate },
+		});
+		const ecwt_verified = await verifier.verify(ecwt.token);
+		await verifier.verify(ecwt.token);
 
-		const ecwt_verified = await ecwtFactory.verify(ecwt.token);
+		expect(validate).toHaveBeenCalledTimes(2);
 
 		expect(ecwt).toBeInstanceOf(Ecwt);
 		expect(ecwt.token).toBe(ecwt_verified.token);
@@ -148,22 +146,22 @@ describe('create token', () => {
 			expect.unreachable();
 		}
 
-		const _ecwt = ecwt;
-
-		ecwtFactory._purgeCache();
-
-		const time_no_cache = await measureTime(async () => {
-			await ecwtFactory.verify(_ecwt.token);
+		const validate = vi.fn(validator);
+		const verifier = new EcwtFactory({
+			lruCache: new LRUCache<string, LRUCacheValue>({ max: 10 }),
+			snowflakeFactory,
+			options: { key, validator: validate },
 		});
-		// console.log('time_no_cache', time_no_cache);
 
-		const time_with_cache = await measureTime(async () => {
-			await ecwtFactory.verify(_ecwt.token);
-		});
-		// console.log('time_with_cache', time_with_cache);
+		await verifier.verify(ecwt.token);
+		expect(validate).toHaveBeenCalledTimes(1);
 
-		expect(time_with_cache).toBeLessThan(time_no_cache);
-		expect(time_no_cache / time_with_cache).toBeGreaterThan(10);
+		await verifier.verify(ecwt.token);
+		expect(validate).toHaveBeenCalledTimes(1);
+
+		verifier._purgeCache();
+		await verifier.verify(ecwt.token);
+		expect(validate).toHaveBeenCalledTimes(2);
 	});
 
 	test('create with invalid data', async () => {
@@ -344,7 +342,7 @@ describe('token revocation', () => {
 				'1',
 				'deadbeef',
 			]);
-			if (Array.isArray(ttl) !== true) {
+			if (!Array.isArray(ttl)) {
 				throw new TypeError('ttl is not an array');
 			}
 

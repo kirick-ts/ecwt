@@ -1,5 +1,6 @@
+import { aessiv } from "@noble/ciphers/aes.js";
 import { Encoder, decode, encode } from "cbor-x";
-import { decrypt, v2 } from "evilcrypt";
+import { decrypt } from "evilcrypt";
 import * as v from "valibot";
 import basex from "base-x";
 //#region src/errors.ts
@@ -11,6 +12,7 @@ var EcwtParseError = class extends Error {
 };
 /** Error thrown when parsed Ecwt is invalid. */
 var EcwtInvalidError = class extends Error {
+	ecwt;
 	message = "Ecwt token is invalid.";
 	constructor(ecwt) {
 		super();
@@ -118,7 +120,7 @@ var EcwtFactory = class {
 			data
 		];
 		const token_raw = this.#cborEncoder ? this.#cborEncoder.encode(payload) : encode(payload);
-		const token_encrypted = await v2.encrypt(token_raw, this.#encryption_key);
+		const token_encrypted = Buffer.concat([Buffer.from([240]), aessiv(this.#encryption_key).encrypt(token_raw)]);
 		const token = base62.encode(token_encrypted);
 		this.setCache(token, {
 			snowflake,
@@ -138,8 +140,7 @@ var EcwtFactory = class {
 	* @param cache_value - Data to be stored in cache.
 	*/
 	setCache(token, cache_value) {
-		var _this$lruCache;
-		(_this$lruCache = this.#lruCache) === null || _this$lruCache === void 0 || _this$lruCache.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
+		this.#lruCache?.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
 	}
 	/**
 	* Parses token.
@@ -147,17 +148,16 @@ var EcwtFactory = class {
 	* @returns -
 	*/
 	async verify(token) {
-		var _this$lruCache2;
 		if (typeof token !== "string") throw new TypeError("Token must be a string.");
 		let snowflake;
 		let ttl_initial;
 		let data;
-		const cached_entry = (_this$lruCache2 = this.#lruCache) === null || _this$lruCache2 === void 0 ? void 0 : _this$lruCache2.info(token);
+		const cached_entry = this.#lruCache?.info(token);
 		if (cached_entry === void 0) {
 			const token_encrypted = Buffer.from(base62.decode(token));
 			let token_raw;
 			try {
-				token_raw = await decrypt(token_encrypted, this.#encryption_key);
+				token_raw = token_encrypted[0] === 240 ? Buffer.from(aessiv(this.#encryption_key).decrypt(token_encrypted.subarray(1))) : await decrypt(token_encrypted, this.#encryption_key);
 			} catch {
 				throw new EcwtParseError();
 			}
@@ -246,12 +246,11 @@ var EcwtFactory = class {
 		}
 	}
 	/**
-	* @internal
 	* Purges LRU cache.
+	* @internal
 	*/
 	_purgeCache() {
-		var _this$lruCache3;
-		(_this$lruCache3 = this.#lruCache) === null || _this$lruCache3 === void 0 || _this$lruCache3.clear();
+		this.#lruCache?.clear();
 	}
 };
 //#endregion
