@@ -106,6 +106,7 @@ const base62 = (0, base_x.default)("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh
 //#endregion
 //#region src/factory.ts
 const REDIS_PREFIX = "@ecwt:";
+const TTL_MAX = 63072e3;
 const tokenSchema = valibot.tuple([
 	valibot.pipe(valibot.unknown(), valibot.check((value) => Buffer.isBuffer(value)), valibot.transform((value) => value)),
 	valibot.number(),
@@ -137,6 +138,8 @@ var EcwtFactory = class {
 	* @returns -
 	*/
 	async create(data, options) {
+		if (!Number.isSafeInteger(options.ttl)) throw new TypeError(`TTL value should be a safe integer, received ${options.ttl}.`);
+		if (options.ttl > 63072e3) throw new TypeError(`TTL value is too large. Maximum is ${TTL_MAX}, received ${options.ttl}.`);
 		if (typeof this.#validator === "function") data = this.#validator(data);
 		const snowflake = await this.#snowflakeFactory.createSafe();
 		const payload = [
@@ -177,7 +180,7 @@ var EcwtFactory = class {
 		let snowflake;
 		let ttl_initial;
 		let data;
-		const cached_entry = this.#lruCache?.info(token);
+		const cached_entry = this.#lruCache?.get(token);
 		if (cached_entry === void 0) {
 			const token_encrypted = Buffer.from(base62.decode(token));
 			let token_raw;
@@ -203,9 +206,9 @@ var EcwtFactory = class {
 				data
 			});
 		} else {
-			snowflake = cached_entry.value.snowflake;
-			ttl_initial = cached_entry.value.ttl_initial;
-			data = cached_entry.value.data;
+			snowflake = cached_entry.snowflake;
+			ttl_initial = cached_entry.ttl_initial;
+			data = cached_entry.data;
 		}
 		const ecwt = new Ecwt(this, {
 			token,
@@ -213,6 +216,7 @@ var EcwtFactory = class {
 			ttl_initial,
 			data
 		});
+		if (!Number.isSafeInteger(ttl_initial) || ttl_initial > 63072e3) throw new EcwtInvalidError(ecwt);
 		if (snowflake.timestamp + ttl_initial * 1e3 < Date.now()) throw new EcwtExpiredError(ecwt);
 		if (this.#redisClient) {
 			await this.#migrateExpired();

@@ -49,6 +49,8 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 };
 
 const REDIS_PREFIX = '@ecwt:';
+export const TTL_MAX: number = 2 * 365 * 24 * 60 * 60;
+
 const tokenSchema = v.tuple([
 	v.pipe(
 		v.unknown(),
@@ -106,6 +108,18 @@ export class EcwtFactory<
 			ttl: number;
 		},
 	): Promise<Ecwt<D>> {
+		if (!Number.isSafeInteger(options.ttl)) {
+			throw new TypeError(
+				`TTL value should be a safe integer, received ${options.ttl}.`,
+			);
+		}
+
+		if (options.ttl > TTL_MAX) {
+			throw new TypeError(
+				`TTL value is too large. Maximum is ${TTL_MAX}, received ${options.ttl}.`,
+			);
+		}
+
 		if (typeof this.#validator === 'function') {
 			data = this.#validator(data);
 		}
@@ -156,6 +170,7 @@ export class EcwtFactory<
 	 * @param token String representation of token.
 	 * @returns -
 	 */
+	// oxlint-disable-next-line max-statements
 	async verify(token: string): Promise<Ecwt<D>> {
 		if (typeof token !== 'string') {
 			throw new TypeError('Token must be a string.');
@@ -228,6 +243,10 @@ export class EcwtFactory<
 			ttl_initial,
 			data,
 		});
+
+		if (!Number.isSafeInteger(ttl_initial) || ttl_initial > TTL_MAX) {
+			throw new EcwtInvalidError(ecwt);
+		}
 
 		if (snowflake.timestamp + ttl_initial * 1000 < Date.now()) {
 			throw new EcwtExpiredError(ecwt);
