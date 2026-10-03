@@ -165,7 +165,7 @@ export class EcwtFactory<
 		let ttl_initial: number;
 		let data: D;
 
-		const cached_entry = this.#lruCache?.info(token);
+		const cached_entry = this.#lruCache?.get(token);
 		// token is not cached
 		if (cached_entry === undefined) {
 			const token_encrypted = Buffer.from(base62.decode(token));
@@ -213,9 +213,9 @@ export class EcwtFactory<
 				data,
 			});
 		} else {
-			snowflake = cached_entry.value.snowflake;
-			ttl_initial = cached_entry.value.ttl_initial;
-			data = cached_entry.value.data as D;
+			snowflake = cached_entry.snowflake;
+			ttl_initial = cached_entry.ttl_initial;
+			data = cached_entry.data as D;
 		}
 
 		// console.log('snowflake', snowflake);
