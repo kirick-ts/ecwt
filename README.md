@@ -45,6 +45,8 @@ const snowflakeFactory = new SnowflakeFactory({
 
 #### `redis` to store revoked tokens (optional)
 
+Token revocation requires Redis server 7.4 or newer for hash field expiration (`HPEXPIRE`).
+
 ```javascript
 import { createClient } from 'redis';
 
