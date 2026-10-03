@@ -3,24 +3,17 @@ import { encode as cborEncode } from 'cbor-x';
 import { v1, v2 } from 'evilcrypt';
 import { expect, test } from 'vitest';
 import { EcwtFactory, EcwtParseError } from './main.js';
+import { key, snowflake_options } from './test-fixtures.js';
 import { base62 } from './utils.js';
 
 // Keep legacy token generation and compatibility checks in this removable file.
-const key = Buffer.from(
-	'54RoavO+7orGGCKqLXcMwNGFGbcnSEq22f9bJX3lT9lgEPSaRAMBaEnHgMQPTPXcifFvGZmDGzOFqUMfqXsAhQ==',
-	'base64',
-);
-
 test.each([
 	[0x01, v1],
 	[0x02, v2],
 ] as const)(
 	'decrypts EvilCrypt v%i tokens without a cache',
 	async (version, cipher) => {
-		const snowflakeFactory = new SnowflakeFactory({
-			server_id: 0,
-			worker_id: 0,
-		});
+		const snowflakeFactory = new SnowflakeFactory(snowflake_options);
 		const snowflake = await snowflakeFactory.createSafe();
 		const data = {
 			user_id: 1,

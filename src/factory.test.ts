@@ -15,6 +15,12 @@ import {
 	EcwtParseError,
 	EcwtRevokedError,
 } from './main.js';
+import {
+	data_ecwt,
+	data_kirick,
+	key,
+	snowflake_options,
+} from './test-fixtures.js';
 import { base62 } from './utils.js';
 
 const redisClient = createClient({
@@ -35,15 +41,7 @@ type Data = v.InferOutput<typeof dataSchema>;
 
 const lruCache = new LRUCache<string, LRUCacheValue>({ max: 100 });
 
-const snowflakeFactory = new SnowflakeFactory({
-	server_id: 0,
-	worker_id: 0,
-});
-
-const key = Buffer.from(
-	'54RoavO+7orGGCKqLXcMwNGFGbcnSEq22f9bJX3lT9lgEPSaRAMBaEnHgMQPTPXcifFvGZmDGzOFqUMfqXsAhQ==',
-	'base64',
-);
+const snowflakeFactory = new SnowflakeFactory(snowflake_options);
 
 function createEcwtFactory() {
 	return new EcwtFactory({
@@ -66,13 +64,7 @@ describe('create token', () => {
 	test('create', async () => {
 		const ts_expired = Math.floor(Date.now() / 1000) + 10;
 
-		ecwt = await ecwtFactory.create(
-			{
-				user_id: 1,
-				nick: 'ecwt',
-			},
-			{ ttl: 10 },
-		);
+		ecwt = await ecwtFactory.create(data_ecwt, { ttl: 10 });
 
 		expect(ecwt).toBeInstanceOf(Ecwt);
 		expect(typeof ecwt.token).toBe('string');
@@ -167,8 +159,8 @@ describe('create token', () => {
 	test('create with invalid data', async () => {
 		const promise = ecwtFactory.create(
 			{
+				...data_ecwt,
 				user_id: 11,
-				nick: 'ecwt',
 			},
 			{ ttl: 10 },
 		);
@@ -208,13 +200,7 @@ describe('create token', () => {
 			},
 		});
 
-		const ecwt_senml = await ecwtFactorySenml.create(
-			{
-				user_id: 1,
-				nick: 'ecwt',
-			},
-			{ ttl: 10 },
-		);
+		const ecwt_senml = await ecwtFactorySenml.create(data_ecwt, { ttl: 10 });
 		const ecwt_senml_verified = await ecwtFactorySenml.verify(ecwt_senml.token);
 
 		expect(ecwt_senml.data).toStrictEqual(ecwt_senml_verified.data);
@@ -224,13 +210,7 @@ describe('create token', () => {
 
 describe('token expiration', () => {
 	test('with cache', async () => {
-		const ecwt = await ecwtFactory.create(
-			{
-				user_id: 1,
-				nick: 'kirick',
-			},
-			{ ttl: 1 },
-		);
+		const ecwt = await ecwtFactory.create(data_kirick, { ttl: 1 });
 
 		await new Promise((resolve) => {
 			setTimeout(resolve, 1100);
@@ -242,13 +222,7 @@ describe('token expiration', () => {
 	});
 
 	test('without cache', async () => {
-		const ecwt = await ecwtFactory.create(
-			{
-				user_id: 1,
-				nick: 'kirick',
-			},
-			{ ttl: 1 },
-		);
+		const ecwt = await ecwtFactory.create(data_kirick, { ttl: 1 });
 
 		ecwtFactory._purgeCache();
 
@@ -264,13 +238,7 @@ describe('token expiration', () => {
 
 describe('token revocation', () => {
 	test('with cache', async () => {
-		const ecwt = await ecwtFactory.create(
-			{
-				user_id: 1,
-				nick: 'kirick',
-			},
-			{ ttl: 100 },
-		);
+		const ecwt = await ecwtFactory.create(data_kirick, { ttl: 100 });
 
 		await ecwt.revoke();
 
@@ -280,13 +248,7 @@ describe('token revocation', () => {
 	});
 
 	test('without cache', async () => {
-		const ecwt = await ecwtFactory.create(
-			{
-				user_id: 1,
-				nick: 'kirick',
-			},
-			{ ttl: 100 },
-		);
+		const ecwt = await ecwtFactory.create(data_kirick, { ttl: 100 });
 
 		ecwtFactory._purgeCache();
 
@@ -315,13 +277,7 @@ describe('token revocation', () => {
 			// we use a new factory to test that the "migrated" flag is cleared
 			const ecwtFactory2 = createEcwtFactory();
 
-			const ecwt = await ecwtFactory2.create(
-				{
-					user_id: 1,
-					nick: 'kirick',
-				},
-				{ ttl: 100 },
-			);
+			const ecwt = await ecwtFactory2.create(data_kirick, { ttl: 100 });
 
 			// force migration
 			await ecwtFactory2.verify(ecwt.token);
@@ -362,13 +318,7 @@ describe('token revocation', () => {
 			// we use a new factory to test that the "migrated" flag is cleared
 			const ecwtFactory2 = createEcwtFactory();
 
-			const ecwt = await ecwtFactory2.create(
-				{
-					user_id: 1,
-					nick: 'kirick',
-				},
-				{ ttl: 100 },
-			);
+			const ecwt = await ecwtFactory2.create(data_kirick, { ttl: 100 });
 
 			// force migration
 			await ecwtFactory2.verify(ecwt.token);

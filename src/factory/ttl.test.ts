@@ -7,22 +7,10 @@ import { LRUCache } from 'lru-cache';
 import { describe, expect, test } from 'vitest';
 import { type LRUCacheValue, TTL_MAX } from '../factory.js';
 import { EcwtFactory, EcwtInvalidError } from '../main.js';
+import { data_ecwt as data, key, snowflake_options } from '../test-fixtures.js';
 import { base62 } from '../utils.js';
 
-const snowflakeFactory = new SnowflakeFactory({
-	server_id: 0,
-	worker_id: 0,
-});
-
-const key = Buffer.from(
-	'54RoavO+7orGGCKqLXcMwNGFGbcnSEq22f9bJX3lT9lgEPSaRAMBaEnHgMQPTPXcifFvGZmDGzOFqUMfqXsAhQ==',
-	'base64',
-);
-
-const data = {
-	user_id: 1,
-	nick: 'ecwt',
-};
+const snowflakeFactory = new SnowflakeFactory(snowflake_options);
 
 // Ten 365-day years in seconds.
 const valid_ttls = [1, 60, 3600, TTL_MAX - 1, TTL_MAX];
