@@ -174,6 +174,8 @@ console.log(`Remaining validity: ${ecwt.getTTL()} seconds`);
 
 ### Token Verification
 
+Starting with 0.5.0, only AES-SIV tokens with format version `0xF0` are accepted. Older EvilCrypt tokens must be reissued; verification rejects them with `EcwtParseError`.
+
 Verify tokens with appropriate error handling:
 
 ```javascript

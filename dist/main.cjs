@@ -23,7 +23,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 //#endregion
 let _noble_ciphers_aes_js = require("@noble/ciphers/aes.js");
 let cbor_x = require("cbor-x");
-let evilcrypt = require("evilcrypt");
 let lru_cache = require("lru-cache");
 let valibot = require("valibot");
 valibot = __toESM(valibot, 1);
@@ -298,12 +297,13 @@ var EcwtFactory = class {
 	#setCache(token, cache_value) {
 		this.#lruCache?.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
 	}
-	async #decryptToken(token) {
+	#decryptToken(token) {
 		let cached_entry = this.#lruCache?.get(token);
 		if (cached_entry) return cached_entry;
 		try {
 			const token_encrypted = Buffer.from(base62.decode(token));
-			const token_raw = token_encrypted[0] === 240 ? Buffer.from((0, _noble_ciphers_aes_js.aessiv)(this.#encryption_key).decrypt(token_encrypted.subarray(1))) : await (0, evilcrypt.decrypt)(token_encrypted, this.#encryption_key);
+			if (token_encrypted[0] !== 240) throw new EcwtParseError();
+			const token_raw = Buffer.from((0, _noble_ciphers_aes_js.aessiv)(this.#encryption_key).decrypt(token_encrypted.subarray(1)));
 			const payload = valibot.parse(tokenSchema, this.#cborEncoder ? this.#cborEncoder.decode(token_raw) : (0, cbor_x.decode)(token_raw));
 			const snowflake_buffer = payload[0];
 			const ttl_initial = payload[1];
@@ -327,7 +327,7 @@ var EcwtFactory = class {
 	async verify(token) {
 		if (typeof token !== "string") throw new TypeError("Token must be a string.");
 		if (token.length > this.#max_token_length) throw new EcwtParseError();
-		const { snowflake, ttl_initial, data } = await this.#decryptToken(token);
+		const { snowflake, ttl_initial, data } = this.#decryptToken(token);
 		const ecwt = new Ecwt(this, {
 			token,
 			snowflake,

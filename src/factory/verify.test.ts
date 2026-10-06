@@ -37,10 +37,10 @@ const ecwtFactory = new EcwtFactory({
 	options: { key, namespace },
 });
 
-function encryptPayload(value: unknown) {
+function encryptPayload(value: unknown, version = 0xf0) {
 	return base62.encode(
 		Buffer.concat([
-			Buffer.from([0xf0]),
+			Buffer.from([version]),
 			aessiv(key).encrypt(cborEncode(value)),
 		]),
 	);
@@ -78,10 +78,14 @@ async function expectInvalidError(
 	expect(result.ecwt?.token).toBe(token);
 }
 
-// One representative for each error class currently produced while parsing.
+// Representative token format and parsing failures.
 // Dependency errors should be normalized to EcwtParseError.
 const parse_errors = [
 	['EcwtParseError: truncated ciphertext', base62.encode(Buffer.from([0xf0]))],
+	[
+		'EcwtParseError: unsupported token version',
+		encryptPayload([snowflake.toBuffer(), ttl, data], 0x02),
+	],
 	['Error: invalid Base62', '?'],
 	['ValiError: invalid payload', encryptPayload(null)],
 	['RangeError: short snowflake', encryptPayload([Buffer.alloc(7), ttl, data])],

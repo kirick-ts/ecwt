@@ -5,7 +5,6 @@ import {
 	decode as cborDecode,
 	encode as cborEncode,
 } from 'cbor-x';
-import { decrypt as evilcryptDecrypt } from 'evilcrypt';
 import { LRUCache } from 'lru-cache';
 import type {
 	RedisClientType,
@@ -199,7 +198,7 @@ export class EcwtFactory<
 		});
 	}
 
-	async #decryptToken(token: string): Promise<LRUCacheValue<D>> {
+	#decryptToken(token: string): LRUCacheValue<D> {
 		let cached_entry = this.#lruCache?.get(token);
 		if (cached_entry) {
 			return cached_entry;
@@ -208,12 +207,13 @@ export class EcwtFactory<
 		try {
 			const token_encrypted = Buffer.from(base62.decode(token));
 
-			const token_raw =
-				token_encrypted[0] === 0xf0
-					? Buffer.from(
-							aessiv(this.#encryption_key).decrypt(token_encrypted.subarray(1)),
-						)
-					: await evilcryptDecrypt(token_encrypted, this.#encryption_key);
+			if (token_encrypted[0] !== 0xf0) {
+				throw new EcwtParseError();
+			}
+
+			const token_raw = Buffer.from(
+				aessiv(this.#encryption_key).decrypt(token_encrypted.subarray(1)),
+			);
 
 			const payload = v.parse(
 				tokenSchema,
@@ -262,7 +262,7 @@ export class EcwtFactory<
 			throw new EcwtParseError();
 		}
 
-		const { snowflake, ttl_initial, data } = await this.#decryptToken(token);
+		const { snowflake, ttl_initial, data } = this.#decryptToken(token);
 
 		const ecwt = new Ecwt(this, {
 			token,
