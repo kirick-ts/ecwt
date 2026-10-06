@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  BUN_VERSION: 1.3.11
+  BUN_VERSION: 1.4.2
   NODE_VERSION: 24.14.0
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
     outputs:
       npm_tag: ${{ steps.set-tag.outputs.npm_tag }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Determine NPM tag
         id: set-tag
@@ -79,10 +79,10 @@ jobs:
       - version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -109,10 +109,10 @@ jobs:
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: https://registry.npmjs.org/

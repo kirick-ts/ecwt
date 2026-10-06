@@ -16,17 +16,16 @@ var __copyProps = (to, from, except, desc) => {
 	}
 	return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", {
 	value: mod,
 	enumerable: true
 }) : target, mod));
 //#endregion
+let _noble_ciphers_aes_js = require("@noble/ciphers/aes.js");
 let cbor_x = require("cbor-x");
 let evilcrypt = require("evilcrypt");
 let valibot = require("valibot");
 valibot = __toESM(valibot, 1);
-let base_x = require("base-x");
-base_x = __toESM(base_x, 1);
 //#region src/errors.ts
 /** Error thrown when string token cannot be parsed to Ecwt. */
 var EcwtParseError = class extends Error {
@@ -36,6 +35,7 @@ var EcwtParseError = class extends Error {
 };
 /** Error thrown when parsed Ecwt is invalid. */
 var EcwtInvalidError = class extends Error {
+	ecwt;
 	message = "Ecwt token is invalid.";
 	constructor(ecwt) {
 		super();
@@ -50,6 +50,131 @@ var EcwtExpiredError = class extends EcwtInvalidError {
 var EcwtRevokedError = class extends EcwtInvalidError {
 	message = "Ecwt is revoked.";
 };
+//#endregion
+//#region node_modules/base-x/src/esm/index.js
+function base(ALPHABET) {
+	if (ALPHABET.length >= 255) throw new TypeError("Alphabet too long");
+	const BASE_MAP = /* @__PURE__ */ new Uint8Array(256);
+	for (let j = 0; j < BASE_MAP.length; j++) BASE_MAP[j] = 255;
+	for (let i = 0; i < ALPHABET.length; i++) {
+		const x = ALPHABET.charAt(i);
+		const xc = x.charCodeAt(0);
+		if (BASE_MAP[xc] !== 255) throw new TypeError(x + " is ambiguous");
+		BASE_MAP[xc] = i;
+	}
+	const BASE = ALPHABET.length;
+	const LEADER = ALPHABET.charAt(0);
+	const FACTOR = Math.log(BASE) / Math.log(256);
+	const iFACTOR = Math.log(256) / Math.log(BASE);
+	function encode(source) {
+		if (source instanceof Uint8Array) {} else if (ArrayBuffer.isView(source)) source = new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
+		else if (Array.isArray(source)) source = Uint8Array.from(source);
+		if (!(source instanceof Uint8Array)) throw new TypeError("Expected Uint8Array");
+		if (source.length === 0) return "";
+		let zeroes = 0;
+		let length = 0;
+		let pbegin = 0;
+		const pend = source.length;
+		while (pbegin !== pend && source[pbegin] === 0) {
+			pbegin++;
+			zeroes++;
+		}
+		const size = (pend - pbegin) * iFACTOR + 1 >>> 0;
+		const b58 = new Uint8Array(size);
+		while (pbegin !== pend) {
+			let carry = source[pbegin];
+			let i = 0;
+			for (let it1 = size - 1; (carry !== 0 || i < length) && it1 !== -1; it1--, i++) {
+				carry += 256 * b58[it1] >>> 0;
+				b58[it1] = carry % BASE >>> 0;
+				carry = carry / BASE >>> 0;
+			}
+			if (carry !== 0) throw new Error("Non-zero carry");
+			length = i;
+			pbegin++;
+		}
+		let it2 = size - length;
+		while (it2 !== size && b58[it2] === 0) it2++;
+		let str = LEADER.repeat(zeroes);
+		for (; it2 < size; ++it2) str += ALPHABET.charAt(b58[it2]);
+		return str;
+	}
+	function decodeUnsafe(source) {
+		if (typeof source !== "string") throw new TypeError("Expected String");
+		if (source.length === 0) return /* @__PURE__ */ new Uint8Array();
+		let psz = 0;
+		let zeroes = 0;
+		let length = 0;
+		while (source[psz] === LEADER) {
+			zeroes++;
+			psz++;
+		}
+		const size = (source.length - psz) * FACTOR + 1 >>> 0;
+		const b256 = new Uint8Array(size);
+		while (psz < source.length) {
+			const charCode = source.charCodeAt(psz);
+			if (charCode > 255) return;
+			let carry = BASE_MAP[charCode];
+			if (carry === 255) return;
+			let i = 0;
+			for (let it3 = size - 1; (carry !== 0 || i < length) && it3 !== -1; it3--, i++) {
+				carry += BASE * b256[it3] >>> 0;
+				b256[it3] = carry % 256 >>> 0;
+				carry = carry / 256 >>> 0;
+			}
+			if (carry !== 0) throw new Error("Non-zero carry");
+			length = i;
+			psz++;
+		}
+		let it4 = size - length;
+		while (it4 !== size && b256[it4] === 0) it4++;
+		const vch = new Uint8Array(zeroes + (size - it4));
+		let j = zeroes;
+		while (it4 !== size) vch[j++] = b256[it4++];
+		return vch;
+	}
+	function decode(string) {
+		const buffer = decodeUnsafe(string);
+		if (buffer) return buffer;
+		throw new Error("Non-base" + BASE + " character");
+	}
+	return {
+		encode,
+		decodeUnsafe,
+		decode
+	};
+}
+//#endregion
+//#region src/utils.ts
+const base62 = base("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+/**
+* Freezes own data properties and Map/Set entries recursively, without invoking getters.
+* Values that reject freezing are retained; built-in and class internal state can remain mutable.
+* @param object - Object to freeze in place.
+* @returns The same object with recursively readonly properties.
+*/
+function deepFreeze(object) {
+	const visited = /* @__PURE__ */ new WeakSet();
+	/** @param value - Value to visit and freeze if supported. */
+	function freeze(value) {
+		if (value === null || typeof value !== "object" && typeof value !== "function" || visited.has(value)) return;
+		visited.add(value);
+		if (value instanceof Map) for (const [key, item] of value) {
+			freeze(key);
+			freeze(item);
+		}
+		else if (value instanceof Set) for (const item of value) freeze(item);
+		for (const name of Reflect.ownKeys(value)) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, name);
+			if (descriptor && "value" in descriptor) freeze(descriptor.value);
+		}
+		try {
+			Object.freeze(value);
+		} catch {}
+	}
+	freeze(object);
+	return object;
+}
 //#endregion
 //#region src/token.ts
 var Ecwt = class {
@@ -75,7 +200,7 @@ var Ecwt = class {
 		this.token = options.token;
 		this.id = options.snowflake.toBase62();
 		this.snowflake = options.snowflake;
-		this.data = Object.freeze(options.data);
+		this.data = deepFreeze(options.data);
 		this.#ecwtFactory = ecwtFactory;
 		this.#ttl_initial = options.ttl_initial;
 	}
@@ -99,11 +224,10 @@ var Ecwt = class {
 	}
 };
 //#endregion
-//#region src/utils.ts
-const base62 = (0, base_x.default)("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
-//#endregion
 //#region src/factory.ts
 const REDIS_PREFIX = "@ecwt:";
+const BASE62_EXPANSION_FACTOR = 8 / Math.log2(62);
+const TTL_MAX = 63072e3;
 const tokenSchema = valibot.tuple([
 	valibot.pipe(valibot.unknown(), valibot.check((value) => Buffer.isBuffer(value)), valibot.transform((value) => value)),
 	valibot.number(),
@@ -115,6 +239,7 @@ var EcwtFactory = class {
 	#snowflakeFactory;
 	#redis_key_revoked;
 	#encryption_key;
+	#max_token_length;
 	#validator;
 	#cborEncoder = null;
 	constructor({ redisClient, lruCache, snowflakeFactory, options }) {
@@ -123,6 +248,8 @@ var EcwtFactory = class {
 		this.#snowflakeFactory = snowflakeFactory;
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
 		this.#encryption_key = options.key;
+		this.#max_token_length = options.max_token_length ?? Infinity;
+		if (options.max_token_length !== void 0 && (!Number.isSafeInteger(this.#max_token_length) || this.#max_token_length <= 0)) throw new TypeError("max_token_length must be a positive safe integer.");
 		this.#validator = options.validator;
 		if (options.senml_key_map) this.#cborEncoder = new cbor_x.Encoder({ keyMap: options.senml_key_map });
 	}
@@ -135,6 +262,8 @@ var EcwtFactory = class {
 	* @returns -
 	*/
 	async create(data, options) {
+		if (!Number.isSafeInteger(options.ttl)) throw new TypeError(`TTL value should be a safe integer, received ${options.ttl}.`);
+		if (options.ttl > 63072e3) throw new TypeError(`TTL value is too large. Maximum is ${TTL_MAX}, received ${options.ttl}.`);
 		if (typeof this.#validator === "function") data = this.#validator(data);
 		const snowflake = await this.#snowflakeFactory.createSafe();
 		const payload = [
@@ -143,9 +272,10 @@ var EcwtFactory = class {
 			data
 		];
 		const token_raw = this.#cborEncoder ? this.#cborEncoder.encode(payload) : (0, cbor_x.encode)(payload);
-		const token_encrypted = await evilcrypt.v2.encrypt(token_raw, this.#encryption_key);
+		const token_encrypted = Buffer.concat([Buffer.from([240]), (0, _noble_ciphers_aes_js.aessiv)(this.#encryption_key).encrypt(token_raw)]);
+		if (token_encrypted.byteLength * BASE62_EXPANSION_FACTOR > this.#max_token_length) throw new RangeError(`Token exceeds maximum length of ${this.#max_token_length} characters.`);
 		const token = base62.encode(token_encrypted);
-		this.setCache(token, {
+		this.#setCache(token, {
 			snowflake,
 			ttl_initial: options.ttl,
 			data
@@ -162,9 +292,29 @@ var EcwtFactory = class {
 	* @param token - String representation of token.
 	* @param cache_value - Data to be stored in cache.
 	*/
-	setCache(token, cache_value) {
-		var _this$lruCache;
-		(_this$lruCache = this.#lruCache) === null || _this$lruCache === void 0 || _this$lruCache.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
+	#setCache(token, cache_value) {
+		this.#lruCache?.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
+	}
+	async #decryptToken(token) {
+		let cached_entry = this.#lruCache?.get(token);
+		if (cached_entry) return cached_entry;
+		try {
+			const token_encrypted = Buffer.from(base62.decode(token));
+			const token_raw = token_encrypted[0] === 240 ? Buffer.from((0, _noble_ciphers_aes_js.aessiv)(this.#encryption_key).decrypt(token_encrypted.subarray(1))) : await (0, evilcrypt.decrypt)(token_encrypted, this.#encryption_key);
+			const payload = valibot.parse(tokenSchema, this.#cborEncoder ? this.#cborEncoder.decode(token_raw) : (0, cbor_x.decode)(token_raw));
+			const snowflake_buffer = payload[0];
+			const ttl_initial = payload[1];
+			const data_raw = payload[2];
+			cached_entry = {
+				snowflake: this.#snowflakeFactory.parse(snowflake_buffer),
+				ttl_initial,
+				data: typeof this.#validator === "function" ? this.#validator(data_raw) : data_raw
+			};
+		} catch {
+			throw new EcwtParseError();
+		}
+		this.#setCache(token, cached_entry);
+		return cached_entry;
 	}
 	/**
 	* Parses token.
@@ -172,47 +322,16 @@ var EcwtFactory = class {
 	* @returns -
 	*/
 	async verify(token) {
-		var _this$lruCache2;
 		if (typeof token !== "string") throw new TypeError("Token must be a string.");
-		let snowflake;
-		let ttl_initial;
-		let data;
-		const cached_entry = (_this$lruCache2 = this.#lruCache) === null || _this$lruCache2 === void 0 ? void 0 : _this$lruCache2.info(token);
-		if (cached_entry === void 0) {
-			const token_encrypted = Buffer.from(base62.decode(token));
-			let token_raw;
-			try {
-				token_raw = await (0, evilcrypt.decrypt)(token_encrypted, this.#encryption_key);
-			} catch {
-				throw new EcwtParseError();
-			}
-			const payload = valibot.parse(tokenSchema, this.#cborEncoder ? this.#cborEncoder.decode(token_raw) : (0, cbor_x.decode)(token_raw));
-			const snowflake_buffer = payload[0];
-			ttl_initial = payload[1];
-			const data_raw = payload[2];
-			snowflake = this.#snowflakeFactory.parse(snowflake_buffer);
-			if (typeof this.#validator === "function") try {
-				data = this.#validator(data_raw);
-			} catch {
-				throw new EcwtParseError();
-			}
-			else data = data_raw;
-			this.setCache(token, {
-				snowflake,
-				ttl_initial,
-				data
-			});
-		} else {
-			snowflake = cached_entry.value.snowflake;
-			ttl_initial = cached_entry.value.ttl_initial;
-			data = cached_entry.value.data;
-		}
+		if (token.length > this.#max_token_length) throw new EcwtParseError();
+		const { snowflake, ttl_initial, data } = await this.#decryptToken(token);
 		const ecwt = new Ecwt(this, {
 			token,
 			snowflake,
 			ttl_initial,
 			data
 		});
+		if (!Number.isSafeInteger(ttl_initial) || ttl_initial > 63072e3) throw new EcwtInvalidError(ecwt);
 		if (snowflake.timestamp + ttl_initial * 1e3 < Date.now()) throw new EcwtExpiredError(ecwt);
 		if (this.#redisClient) {
 			await this.#migrateExpired();
@@ -226,21 +345,19 @@ var EcwtFactory = class {
 	* @returns Returns whether token was parsed and verified successfully and Ecwt if parsed.
 	*/
 	async safeVerify(token) {
-		let ecwt = null;
 		try {
-			ecwt = await this.verify(token);
 			return {
 				success: true,
-				ecwt
+				ecwt: await this.verify(token)
 			};
 		} catch (error) {
 			if (error instanceof EcwtParseError) return {
 				success: false,
 				ecwt: null
 			};
-			if (error instanceof EcwtInvalidError) return {
+			if (error instanceof EcwtInvalidError || error instanceof EcwtExpiredError || error instanceof EcwtRevokedError) return {
 				success: false,
-				ecwt
+				ecwt: error.ecwt
 			};
 			throw error;
 		}
@@ -271,12 +388,11 @@ var EcwtFactory = class {
 		}
 	}
 	/**
-	* @internal
 	* Purges LRU cache.
+	* @internal
 	*/
 	_purgeCache() {
-		var _this$lruCache3;
-		(_this$lruCache3 = this.#lruCache) === null || _this$lruCache3 === void 0 || _this$lruCache3.clear();
+		this.#lruCache?.clear();
 	}
 };
 //#endregion

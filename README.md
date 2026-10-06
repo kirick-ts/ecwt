@@ -1,21 +1,22 @@
 # ECWT
 
 [![npm version](https://img.shields.io/npm/v/ecwt.svg)](https://www.npmjs.com/package/ecwt)
+[![Open on npmx.dev](https://npmx.dev/api/registry/badge/version/ecwt?style=shieldsio&label=npmx.dev)](https://npmx.dev/package/ecwt)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-ECWT is module for creating and verifying encrypted CBOR Web Tokens. It is designed to be used in situations where JWT is used, but there are major differences:
+ECWT is a module for creating and verifying encrypted CBOR Web Tokens. It is designed to be used in situations where JWT is used, but there are major differences:
 
 | | JWT | ECWT |
 | --- | --- | --- |
-| Encoding | 🧐 JSON with base64 | ✅ CBOR <br> 2x smaller output |
+| Encoding | 🧐 JSON with base64 | ✅ Compact CBOR with Base62 |
 | Binary data | 🧐 Double base64 encoding | ✅ Supported out of the box |
-| Security | 📝 Signed <br> Payload is readable by everyone | 🔒 Encrypted <br> Payload is readable only with private key |
-| Metadata | ➕ Type and algorithm, increases size | ✅ No unnecessary metadata |
+| Security | 📝 Signed <br> Payload is readable by everyone | 🔒 AES-SIV authenticated encryption <br> Payload is readable only with the secret key |
+| Metadata | ➕ Type and algorithm, increases size | ✅ One-byte format version |
 | Revocation | 🧑‍💻 Requires additional implementation | ✅ Included with Redis |
 
 ## Installation
 
-ECWT depends on other modules, so you need to install them too.
+ECWT requires Node.js 22.13 or newer and supports both ESM and CommonJS. Install it with the required `@kirick/snowflake` dependency:
 
 ```sh
 bun install ecwt @kirick/snowflake
@@ -44,6 +45,8 @@ const snowflakeFactory = new SnowflakeFactory({
 
 #### `redis` to store revoked tokens (optional)
 
+Token revocation requires Redis server 7.4 or newer for hash field expiration (`HPEXPIRE`).
+
 ```javascript
 import { createClient } from 'redis';
 
@@ -58,6 +61,8 @@ await redisClient.connect();
 ```
 
 #### `lru-cache` to avoid decrypt the same token multiple times (optional)
+
+Without a cache, every verification decrypts and validates the token. With a cache, repeated verification reuses the decoded payload while still checking expiration and revocation.
 
 ```javascript
 import { LRUCache } from 'lru-cache';
@@ -111,7 +116,7 @@ const snowflakeFactory = new SnowflakeFactory({
   worker_id: 0,
 });
 
-// Optional but recommended: Configure LRU cache for performance optimization
+// Optional: Cache decoded tokens for repeated verification
 const lruCache = new LRUCache({
   max: 1000, // Maximum cache size
   ttl: 60 * 60 * 1000, // Cache expiration (1 hour)
@@ -134,8 +139,10 @@ const ecwtFactory = new EcwtFactory({
   options: {
     // Unique namespace for Redis keys to prevent collisions
     namespace: 'auth-service',
-    // Your 64-byte encryption key (store securely)
+    // Your 64-byte random secret key for AES-SIV (store securely)
     key: Buffer.from('YOUR_BASE64_KEY', 'base64'),
+    // Optional: maximum serialized token length in Base62 characters, no limit if omitted
+    max_token_length: 4000,
     // Schema validator for payload structure validation
     validator: myValidator,
   },
@@ -144,7 +151,7 @@ const ecwtFactory = new EcwtFactory({
 
 ### Token Generation
 
-Generate tokens with precise payload and expiration controls:
+Generate tokens with payload and expiration controls:
 
 ```javascript
 // Create an access token with a 30-minute expiration
@@ -170,7 +177,7 @@ console.log(`Remaining validity: ${ecwt.getTTL()} seconds`);
 
 ### Token Verification
 
-Implement verification with appropriate error handling:
+Verify tokens with appropriate error handling:
 
 ```javascript
 import {
@@ -293,10 +300,10 @@ const optimizedToken = await optimizedFactory.create(payload, { ttl: 3600 });
 
 console.log(`Standard token size: ${standardToken.token.length} bytes`);
 console.log(`Optimized token size: ${optimizedToken.token.length} bytes`);
-console.log(`Size reduction: ${(1 - optimizedToken.token.length / standardToken.token.length).toFixed(2) * 100}%`);
+console.log(`Size reduction: ${((1 - optimizedToken.token.length / standardToken.token.length) * 100).toFixed(2)}%`);
 
-// Outputs:
-// > Standard token size: 210 bytes
-// > Optimized token size: 146 bytes
-// > Size reduction: 30%
+// Example output (sizes depend on the payload):
+// > Standard token size: 193 bytes
+// > Optimized token size: 132 bytes
+// > Size reduction: 31.61%
 ```

@@ -1,5 +1,7 @@
 import type { Snowflake } from '@kirick/snowflake';
 import type { EcwtFactory } from './factory.js';
+import type { ReadonlyDeep } from './utils/types.js';
+import { deepFreeze } from './utils.js';
 
 export class Ecwt<
 	const D extends Record<string, unknown> = Record<string, unknown>,
@@ -11,7 +13,7 @@ export class Ecwt<
 	/** Snowflake associated with token. */
 	readonly snowflake: Snowflake;
 	/** Data stored in token. */
-	readonly data: Readonly<D>;
+	readonly data: ReadonlyDeep<D>;
 	#ecwtFactory: EcwtFactory<D>;
 	#ttl_initial: number;
 
@@ -35,7 +37,7 @@ export class Ecwt<
 		this.token = options.token;
 		this.id = options.snowflake.toBase62();
 		this.snowflake = options.snowflake;
-		this.data = Object.freeze(options.data);
+		this.data = deepFreeze(options.data);
 
 		this.#ecwtFactory = ecwtFactory;
 		this.#ttl_initial = options.ttl_initial;
