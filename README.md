@@ -62,15 +62,14 @@ await redisClient.connect();
 
 #### `lru-cache` to avoid decrypt the same token multiple times (optional)
 
+`lru-cache` is included with ECWT. Pass cache options as `options.lru_cache` to let each factory create its own private cache. The same options can be reused across factories without sharing cached tokens. Omit `options.lru_cache` to disable caching.
+
 Without a cache, every verification decrypts and validates the token. With a cache, repeated verification reuses the decoded payload while still checking expiration and revocation.
 
 ```javascript
-import { LRUCache } from 'lru-cache';
-
-const lruCache = new LRUCache({
+const lru_cache = {
   max: 1000, // maximum of 1000 items
-  ttl: 60 * 60 * 1000, // 1 hour
-});
+};
 ```
 
 #### Validation library of your choice (optional)
@@ -107,7 +106,6 @@ First, configure the EcwtFactory with your environment dependencies:
 ```javascript
 import { EcwtFactory } from 'ecwt';
 import { SnowflakeFactory } from '@kirick/snowflake';
-import { LRUCache } from 'lru-cache';
 import { createClient } from 'redis';
 
 // Required: Initialize SnowflakeFactory for token ID generation
@@ -117,10 +115,9 @@ const snowflakeFactory = new SnowflakeFactory({
 });
 
 // Optional: Cache decoded tokens for repeated verification
-const lruCache = new LRUCache({
+const lru_cache = {
   max: 1000, // Maximum cache size
-  ttl: 60 * 60 * 1000, // Cache expiration (1 hour)
-});
+};
 
 // Optional: Set up Redis client for token revocation capabilities
 const redisClient = createClient({
@@ -134,9 +131,9 @@ await redisClient.connect();
 // Initialize the factory with your configuration
 const ecwtFactory = new EcwtFactory({
   redisClient,
-  lruCache,
   snowflakeFactory,
   options: {
+    lru_cache,
     // Unique namespace for Redis keys to prevent collisions
     namespace: 'auth-service',
     // Your 64-byte random secret key for AES-SIV (store securely)

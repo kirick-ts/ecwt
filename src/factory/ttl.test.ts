@@ -3,7 +3,7 @@
 import { SnowflakeFactory } from '@kirick/snowflake';
 import { aessiv } from '@noble/ciphers/aes.js';
 import { encode as cborEncode } from 'cbor-x';
-import { LRUCache } from 'lru-cache';
+import type { LRUCache } from 'lru-cache';
 import { describe, expect, test } from 'vitest';
 import { type LRUCacheValue, TTL_MAX } from '../factory.js';
 import { EcwtFactory, EcwtInvalidError } from '../main.js';
@@ -25,11 +25,12 @@ const invalid_ttls = [
 ];
 const excessive_ttls = [TTL_MAX + 1, Number.MAX_SAFE_INTEGER];
 
-function createEcwtFactory(lruCache?: LRUCache<string, LRUCacheValue>) {
+function createEcwtFactory(
+	lru_cache?: LRUCache.Options<string, LRUCacheValue, unknown>,
+) {
 	return new EcwtFactory({
-		lruCache,
 		snowflakeFactory,
-		options: { key },
+		options: { key, lru_cache },
 	});
 }
 
@@ -39,13 +40,11 @@ async function verifyToken(ttl: number, has_cache: boolean) {
 	const token = base62.encode(
 		Buffer.concat([Buffer.from([0xf0]), aessiv(key).encrypt(token_raw)]),
 	);
-	const lruCache = has_cache
-		? new LRUCache<string, LRUCacheValue>({ max: 100 })
-		: undefined;
-
-	lruCache?.set(token, { snowflake, ttl_initial: ttl, data });
-
-	const ecwtFactory = createEcwtFactory(lruCache);
+	const ecwtFactory = createEcwtFactory(has_cache ? { max: 100 } : undefined);
+	if (has_cache) {
+		// Warm the private cache, including payloads rejected by TTL validation.
+		await ecwtFactory.safeVerify(token);
+	}
 
 	return ecwtFactory.verify(token);
 }

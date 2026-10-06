@@ -6,7 +6,7 @@ import {
 	encode as cborEncode,
 } from 'cbor-x';
 import { decrypt as evilcryptDecrypt } from 'evilcrypt';
-import type { LRUCache } from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import type {
 	RedisClientType,
 	RedisFunctions,
@@ -34,8 +34,6 @@ type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
 type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 	/** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */
 	redisClient?: RedisClient;
-	/** LRUCache instance. If not provided, tokens will be decrypted every time they are verified. */
-	lruCache?: LRUCache<string, LRUCacheValue<D>>;
 	/** SnowflakeFactory instance. Generates unique IDs for tokens. */
 	snowflakeFactory: SnowflakeFactory;
 	options: {
@@ -43,6 +41,11 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 		namespace?: string;
 		/** Encryption key, 64 bytes. */
 		key: Buffer;
+		/**
+		 * Options for a private LRU cache. If not provided, tokens will be decrypted every time they are verified.
+		 * @see https://npmx.dev/package/lru-cache#user-content-usage
+		 */
+		lru_cache?: LRUCache.Options<string, LRUCacheValue<D>, unknown>;
 		/** Maximum serialized token length in Base62 characters. Defaults to 4000. */
 		max_token_length?: number;
 		/** Validator for token data. Should return validated value or throw an error. */
@@ -80,12 +83,13 @@ export class EcwtFactory<
 
 	constructor({
 		redisClient,
-		lruCache,
 		snowflakeFactory,
 		options,
 	}: EcwtFactoryArguments<D>) {
 		this.#redisClient = redisClient;
-		this.#lruCache = lruCache;
+		this.#lruCache = options.lru_cache
+			? new LRUCache(options.lru_cache)
+			: undefined;
 		this.#snowflakeFactory = snowflakeFactory;
 
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;

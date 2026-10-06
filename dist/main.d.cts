@@ -11,8 +11,6 @@ type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
 type EcwtFactoryArguments<D extends Record<string, unknown>> = {
   /** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */
   redisClient?: RedisClient;
-  /** LRUCache instance. If not provided, tokens will be decrypted every time they are verified. */
-  lruCache?: LRUCache<string, LRUCacheValue<D>>;
   /** SnowflakeFactory instance. Generates unique IDs for tokens. */
   snowflakeFactory: SnowflakeFactory;
   options: {
@@ -20,6 +18,11 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
     namespace?: string;
     /** Encryption key, 64 bytes. */
     key: Buffer;
+    /**
+     * Options for a private LRU cache. If not provided, tokens will be decrypted every time they are verified.
+     * @see https://npmx.dev/package/lru-cache#user-content-usage
+     */
+    lru_cache?: LRUCache.Options<string, LRUCacheValue<D>, unknown>;
     /** Maximum serialized token length in Base62 characters. Defaults to 4000. */
     max_token_length?: number;
     /** Validator for token data. Should return validated value or throw an error. */
@@ -30,7 +33,7 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 };
 export declare class EcwtFactory<const D extends Record<string, unknown> = Record<string, unknown>> {
   #private;
-  constructor({ redisClient, lruCache, snowflakeFactory, options }: EcwtFactoryArguments<D>);
+  constructor({ redisClient, snowflakeFactory, options }: EcwtFactoryArguments<D>);
   /**
    * Creates new token.
    * @async

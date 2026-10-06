@@ -14,12 +14,11 @@ const ttl = 3600;
 
 function createEcwtFactory(
 	max_token_length?: number,
-	lruCache?: LRUCache<string, LRUCacheValue>,
+	lru_cache?: LRUCache.Options<string, LRUCacheValue, unknown>,
 ) {
 	return new EcwtFactory({
-		lruCache,
 		snowflakeFactory,
-		options: { key, max_token_length },
+		options: { key, max_token_length, lru_cache },
 	});
 }
 
@@ -60,8 +59,8 @@ describe('create token length', () => {
 		});
 		expect(accepted.token).toBe(ecwt.token);
 
-		const lruCache = new LRUCache<string, LRUCacheValue>({ max: 10 });
-		const promise = createEcwtFactory(max_token_length - 1, lruCache).create(
+		const set = vi.spyOn(LRUCache.prototype, 'set');
+		const promise = createEcwtFactory(max_token_length - 1, { max: 10 }).create(
 			data,
 			{ ttl },
 		);
@@ -70,7 +69,7 @@ describe('create token length', () => {
 				`Token exceeds maximum length of ${max_token_length - 1} characters.`,
 			),
 		);
-		expect(lruCache.size).toBe(0);
+		expect(set).not.toHaveBeenCalled();
 	});
 
 	test('defaults to 4000 characters and accepts a larger configured limit', async () => {
@@ -115,28 +114,23 @@ for (const has_cache of [false, true]) {
 	describe(`verify token length (${has_cache ? 'with cache' : 'without cache'})`, () => {
 		test('accepts the exact limit and rejects longer tokens before decoding', async () => {
 			const ecwt = await createEcwtFactory().create(data, { ttl });
-			const lruCache = has_cache
-				? new LRUCache<string, LRUCacheValue>({ max: 10 })
-				: undefined;
-			lruCache?.set(ecwt.token, {
-				snowflake: ecwt.snowflake,
-				ttl_initial: ttl,
-				data,
-			});
-			const accepted = createEcwtFactory(ecwt.token.length, lruCache);
+			const lru_cache = has_cache ? { max: 10 } : undefined;
+			const accepted = createEcwtFactory(ecwt.token.length, lru_cache);
 			const verified = await accepted.verify(ecwt.token);
 			const result = await accepted.safeVerify(ecwt.token);
 			expect(verified.data).toStrictEqual(data);
 			expect(result.success).toBe(true);
 
 			const decode = vi.spyOn(base62, 'decode');
-			const rejected = createEcwtFactory(ecwt.token.length - 1, lruCache);
+			const get = vi.spyOn(LRUCache.prototype, 'get');
+			const rejected = createEcwtFactory(ecwt.token.length - 1, lru_cache);
 			await expect(rejected.verify(ecwt.token)).rejects.toThrow(EcwtParseError);
 			await expect(rejected.safeVerify(ecwt.token)).resolves.toStrictEqual({
 				success: false,
 				ecwt: null,
 			});
 			expect(decode).not.toHaveBeenCalled();
+			expect(get).not.toHaveBeenCalled();
 		});
 	});
 }

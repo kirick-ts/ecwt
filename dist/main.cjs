@@ -24,6 +24,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 let _noble_ciphers_aes_js = require("@noble/ciphers/aes.js");
 let cbor_x = require("cbor-x");
 let evilcrypt = require("evilcrypt");
+let lru_cache = require("lru-cache");
 let valibot = require("valibot");
 valibot = __toESM(valibot, 1);
 //#region src/errors.ts
@@ -242,9 +243,9 @@ var EcwtFactory = class {
 	#max_token_length = 4e3;
 	#validator;
 	#cborEncoder = null;
-	constructor({ redisClient, lruCache, snowflakeFactory, options }) {
+	constructor({ redisClient, snowflakeFactory, options }) {
 		this.#redisClient = redisClient;
-		this.#lruCache = lruCache;
+		this.#lruCache = options.lru_cache ? new lru_cache.LRUCache(options.lru_cache) : void 0;
 		this.#snowflakeFactory = snowflakeFactory;
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
 		this.#encryption_key = options.key;

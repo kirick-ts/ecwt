@@ -2,17 +2,14 @@
 // oxlint-disable max-lines-per-function
 
 import { SnowflakeFactory } from '@kirick/snowflake';
-import { LRUCache } from 'lru-cache';
 import { createClient } from 'redis';
 import * as v from 'valibot';
-import { describe, expect, test, vi } from 'vitest';
-import type { LRUCacheValue } from './factory.js';
+import { describe, expect, test } from 'vitest';
 import {
 	Ecwt,
 	EcwtExpiredError,
 	EcwtFactory,
 	EcwtInvalidError,
-	EcwtParseError,
 	EcwtRevokedError,
 } from './main.js';
 import {
@@ -39,16 +36,16 @@ const validator = v.parser(dataSchema);
 
 type Data = v.InferOutput<typeof dataSchema>;
 
-const lruCache = new LRUCache<string, LRUCacheValue<Data>>({ max: 100 });
+const lru_cache = { max: 100 };
 
 const snowflakeFactory = new SnowflakeFactory(snowflake_options);
 
 function createEcwtFactory() {
 	return new EcwtFactory({
 		redisClient,
-		lruCache,
 		snowflakeFactory,
 		options: {
+			lru_cache,
 			namespace: 'test',
 			key,
 			validator,
@@ -79,9 +76,14 @@ describe('create token', () => {
 			expect.unreachable();
 		}
 
-		const promise = ecwtFactory.verify(ecwt.token);
+		const ecwt_verified = await ecwtFactory.verify(ecwt.token);
 
-		await expect(promise).resolves.toBeInstanceOf(Ecwt);
+		expect(ecwt_verified).toBeInstanceOf(Ecwt);
+		expect(ecwt_verified.token).toBe(ecwt.token);
+		expect(ecwt_verified.id).toBe(ecwt.id);
+		expect(ecwt_verified.snowflake).toStrictEqual(ecwt.snowflake);
+		expect(ecwt_verified.ts_expired).toBe(ecwt.ts_expired);
+		expect(ecwt_verified.data).toStrictEqual(ecwt.data);
 	});
 
 	test('safe verify', async () => {
@@ -95,67 +97,6 @@ describe('create token', () => {
 		expect(result.ecwt).toBeInstanceOf(Ecwt);
 	});
 
-	test('verify with cache', async () => {
-		if (!ecwt) {
-			expect.unreachable();
-		}
-
-		const ecwt_verified = await ecwtFactory.verify(ecwt.token);
-
-		expect(ecwt).toBeInstanceOf(Ecwt);
-		expect(ecwt.token).toBe(ecwt_verified.token);
-		expect(ecwt.id).toBe(ecwt_verified.id);
-		expect(ecwt.snowflake).toStrictEqual(ecwt_verified.snowflake);
-		expect(ecwt.ts_expired).toBe(ecwt_verified.ts_expired);
-		expect(ecwt.data).toStrictEqual(ecwt_verified.data);
-	});
-
-	test('verify without cache', async () => {
-		if (!ecwt) {
-			expect.unreachable();
-		}
-
-		const validate = vi.fn(validator);
-		const verifier = new EcwtFactory({
-			snowflakeFactory,
-			options: { key, validator: validate },
-		});
-		const ecwt_verified = await verifier.verify(ecwt.token);
-		await verifier.verify(ecwt.token);
-
-		expect(validate).toHaveBeenCalledTimes(2);
-
-		expect(ecwt).toBeInstanceOf(Ecwt);
-		expect(ecwt.token).toBe(ecwt_verified.token);
-		expect(ecwt.id).toBe(ecwt_verified.id);
-		expect(ecwt.snowflake).toStrictEqual(ecwt_verified.snowflake);
-		expect(ecwt.ts_expired).toBe(ecwt_verified.ts_expired);
-		expect(ecwt.data).toStrictEqual(ecwt_verified.data);
-	});
-
-	test('cache usage', async () => {
-		if (!ecwt) {
-			expect.unreachable();
-		}
-
-		const validate = vi.fn(validator);
-		const verifier = new EcwtFactory({
-			lruCache: new LRUCache<string, LRUCacheValue<Data>>({ max: 10 }),
-			snowflakeFactory,
-			options: { key, validator: validate },
-		});
-
-		await verifier.verify(ecwt.token);
-		expect(validate).toHaveBeenCalledTimes(1);
-
-		await verifier.verify(ecwt.token);
-		expect(validate).toHaveBeenCalledTimes(1);
-
-		verifier._purgeCache();
-		await verifier.verify(ecwt.token);
-		expect(validate).toHaveBeenCalledTimes(2);
-	});
-
 	test('create with invalid data', async () => {
 		const promise = ecwtFactory.create(
 			{
@@ -166,19 +107,6 @@ describe('create token', () => {
 		);
 
 		await expect(promise).rejects.toThrow(v.ValiError);
-	});
-
-	test('verify unparsable token', async () => {
-		const promise = ecwtFactory.verify('deadbeef');
-
-		await expect(promise).rejects.toThrow(EcwtParseError);
-	});
-
-	test('safe verify unparsable token', async () => {
-		const result = await ecwtFactory.safeVerify('deadbeef');
-
-		expect(result.success).toBe(false);
-		expect(result.ecwt).toBe(null);
 	});
 
 	test('senml', async () => {
@@ -209,7 +137,7 @@ describe('create token', () => {
 });
 
 describe('token expiration', () => {
-	test('with cache', async () => {
+	test('rejects a token after its TTL elapses', async () => {
 		const ecwt = await ecwtFactory.create(data_kirick, { ttl: 1 });
 
 		await new Promise((resolve) => {
@@ -219,38 +147,12 @@ describe('token expiration', () => {
 		const promise = ecwtFactory.verify(ecwt.token);
 		await expect(promise).rejects.toThrow(EcwtInvalidError);
 		await expect(promise).rejects.toThrow(EcwtExpiredError);
-	});
-
-	test('without cache', async () => {
-		const ecwt = await ecwtFactory.create(data_kirick, { ttl: 1 });
-
-		ecwtFactory._purgeCache();
-
-		await new Promise((resolve) => {
-			setTimeout(resolve, 1100);
-		});
-
-		const promise = ecwtFactory.verify(ecwt.token);
-		await expect(promise).rejects.toThrow(EcwtExpiredError);
-		await expect(promise).rejects.toThrow(EcwtInvalidError);
 	});
 });
 
 describe('token revocation', () => {
 	test('with cache', async () => {
 		const ecwt = await ecwtFactory.create(data_kirick, { ttl: 100 });
-
-		await ecwt.revoke();
-
-		const promise = ecwtFactory.verify(ecwt.token);
-		await expect(promise).rejects.toThrow(EcwtRevokedError);
-		await expect(promise).rejects.toThrow(EcwtInvalidError);
-	});
-
-	test('without cache', async () => {
-		const ecwt = await ecwtFactory.create(data_kirick, { ttl: 100 });
-
-		ecwtFactory._purgeCache();
 
 		await ecwt.revoke();
 

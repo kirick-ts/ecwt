@@ -17,7 +17,10 @@ for (const format of ['commonjs', 'module'] as const) {
 			async function main() {
 				const factory = new EcwtFactory({
 					snowflakeFactory: new SnowflakeFactory(${JSON.stringify(snowflake_options)}),
-					options: { key: Buffer.from(${JSON.stringify(key.toString('base64'))}, 'base64') },
+					options: {
+						key: Buffer.from(${JSON.stringify(key.toString('base64'))}, 'base64'),
+						lru_cache: { max: 10 },
+					},
 				});
 				const created = await factory.create(${JSON.stringify(data)}, { ttl: 60 });
 				const verified = await factory.verify(created.token);

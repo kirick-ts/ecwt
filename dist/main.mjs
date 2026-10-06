@@ -1,6 +1,7 @@
 import { aessiv } from "@noble/ciphers/aes.js";
 import { Encoder, decode, encode } from "cbor-x";
 import { decrypt } from "evilcrypt";
+import { LRUCache } from "lru-cache";
 import * as v from "valibot";
 //#region src/errors.ts
 /** Error thrown when string token cannot be parsed to Ecwt. */
@@ -218,9 +219,9 @@ var EcwtFactory = class {
 	#max_token_length = 4e3;
 	#validator;
 	#cborEncoder = null;
-	constructor({ redisClient, lruCache, snowflakeFactory, options }) {
+	constructor({ redisClient, snowflakeFactory, options }) {
 		this.#redisClient = redisClient;
-		this.#lruCache = lruCache;
+		this.#lruCache = options.lru_cache ? new LRUCache(options.lru_cache) : void 0;
 		this.#snowflakeFactory = snowflakeFactory;
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
 		this.#encryption_key = options.key;

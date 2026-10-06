@@ -26,11 +26,11 @@
 		"base-x": "5.0.1",
 		"cbor-x": "1.5.6",
 		"evilcrypt": "0.2.3",
+		"lru-cache": "11.5.3",
 		"valibot": "1.4.2"
 	},
 	"peerDependencies": {
 		"@kirick/snowflake": "^0.3",
-		"lru-cache": "^11",
 		"redis": "^4.6"
 	},
 	"devDependencies": {
