@@ -141,6 +141,8 @@ const ecwtFactory = new EcwtFactory({
     namespace: 'auth-service',
     // Your 64-byte random secret key for AES-SIV (store securely)
     key: Buffer.from('YOUR_BASE64_KEY', 'base64'),
+    // Optional: maximum serialized token length in Base62 characters, no limit if omitted
+    max_token_length: 4000,
     // Schema validator for payload structure validation
     validator: myValidator,
   },

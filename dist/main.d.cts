@@ -20,6 +20,8 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
     namespace?: string;
     /** Encryption key, 64 bytes. */
     key: Buffer;
+    /** Maximum serialized token length in Base62 characters. Unlimited if omitted. */
+    max_token_length?: number;
     /** Validator for token data. Should return validated value or throw an error. */
     validator?: (value: unknown) => D;
     /** Payload object keys mapped for their SenML keys. */

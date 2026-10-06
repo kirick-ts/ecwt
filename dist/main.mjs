@@ -109,6 +109,7 @@ var Ecwt = class {
 //#endregion
 //#region src/factory.ts
 const REDIS_PREFIX = "@ecwt:";
+const BASE62_EXPANSION_FACTOR = 8 / Math.log2(62);
 const TTL_MAX = 63072e3;
 const tokenSchema = v.tuple([
 	v.pipe(v.unknown(), v.check((value) => Buffer.isBuffer(value)), v.transform((value) => value)),
@@ -121,6 +122,7 @@ var EcwtFactory = class {
 	#snowflakeFactory;
 	#redis_key_revoked;
 	#encryption_key;
+	#max_token_length;
 	#validator;
 	#cborEncoder = null;
 	constructor({ redisClient, lruCache, snowflakeFactory, options }) {
@@ -129,6 +131,8 @@ var EcwtFactory = class {
 		this.#snowflakeFactory = snowflakeFactory;
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
 		this.#encryption_key = options.key;
+		this.#max_token_length = options.max_token_length ?? Infinity;
+		if (options.max_token_length !== void 0 && (!Number.isSafeInteger(this.#max_token_length) || this.#max_token_length <= 0)) throw new TypeError("max_token_length must be a positive safe integer.");
 		this.#validator = options.validator;
 		if (options.senml_key_map) this.#cborEncoder = new Encoder({ keyMap: options.senml_key_map });
 	}
@@ -152,6 +156,7 @@ var EcwtFactory = class {
 		];
 		const token_raw = this.#cborEncoder ? this.#cborEncoder.encode(payload) : encode(payload);
 		const token_encrypted = Buffer.concat([Buffer.from([240]), aessiv(this.#encryption_key).encrypt(token_raw)]);
+		if (token_encrypted.byteLength * BASE62_EXPANSION_FACTOR > this.#max_token_length) throw new RangeError(`Token exceeds maximum length of ${this.#max_token_length} characters.`);
 		const token = base62.encode(token_encrypted);
 		this.#setCache(token, {
 			snowflake,
@@ -201,6 +206,7 @@ var EcwtFactory = class {
 	*/
 	async verify(token) {
 		if (typeof token !== "string") throw new TypeError("Token must be a string.");
+		if (token.length > this.#max_token_length) throw new EcwtParseError();
 		const { snowflake, ttl_initial, data } = await this.#decryptToken(token);
 		const ecwt = new Ecwt(this, {
 			token,

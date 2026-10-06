@@ -43,6 +43,8 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 		namespace?: string;
 		/** Encryption key, 64 bytes. */
 		key: Buffer;
+		/** Maximum serialized token length in Base62 characters. Unlimited if omitted. */
+		max_token_length?: number;
 		/** Validator for token data. Should return validated value or throw an error. */
 		validator?: (value: unknown) => D;
 		/** Payload object keys mapped for their SenML keys. */
@@ -51,6 +53,7 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 };
 
 const REDIS_PREFIX = '@ecwt:';
+const BASE62_EXPANSION_FACTOR = 8 / Math.log2(62);
 export const TTL_MAX: number = 2 * 365 * 24 * 60 * 60;
 
 const tokenSchema = v.tuple([
@@ -71,6 +74,7 @@ export class EcwtFactory<
 	#snowflakeFactory: SnowflakeFactory;
 	#redis_key_revoked: string;
 	#encryption_key: Buffer;
+	#max_token_length: number;
 	#validator: ((value: unknown) => D) | undefined;
 	#cborEncoder: CborEncoder | null = null;
 
@@ -86,6 +90,16 @@ export class EcwtFactory<
 
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
 		this.#encryption_key = options.key;
+		this.#max_token_length = options.max_token_length ?? Infinity;
+
+		if (
+			options.max_token_length !== undefined
+			&& (!Number.isSafeInteger(this.#max_token_length)
+				|| this.#max_token_length <= 0)
+		) {
+			throw new TypeError('max_token_length must be a positive safe integer.');
+		}
+
 		this.#validator = options.validator;
 
 		if (options.senml_key_map) {
@@ -140,6 +154,16 @@ export class EcwtFactory<
 			Buffer.from([0xf0]),
 			aessiv(this.#encryption_key).encrypt(token_raw),
 		]);
+		// Use a conservative upper bound for the Base62 length before encoding.
+		if (
+			token_encrypted.byteLength * BASE62_EXPANSION_FACTOR
+			> this.#max_token_length
+		) {
+			throw new RangeError(
+				`Token exceeds maximum length of ${this.#max_token_length} characters.`,
+			);
+		}
+
 		const token = base62.encode(token_encrypted);
 
 		this.#setCache(token, {
@@ -224,6 +248,10 @@ export class EcwtFactory<
 	async verify(token: string): Promise<Ecwt<D>> {
 		if (typeof token !== 'string') {
 			throw new TypeError('Token must be a string.');
+		}
+
+		if (token.length > this.#max_token_length) {
+			throw new EcwtParseError();
 		}
 
 		const { snowflake, ttl_initial, data } = await this.#decryptToken(token);
