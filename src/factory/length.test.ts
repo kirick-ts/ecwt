@@ -41,7 +41,9 @@ describe('maximum token length option', () => {
 	for (const max_token_length of invalid_lengths) {
 		test(`invalid length ${max_token_length}`, () => {
 			expect(() => createEcwtFactory(max_token_length)).toThrow(
-				new TypeError('max_token_length must be a positive safe integer.'),
+				new TypeError(
+					'Option max_token_length must be a positive safe integer.',
+				),
 			);
 		});
 	}
@@ -71,28 +73,35 @@ describe('create token length', () => {
 		expect(lruCache.size).toBe(0);
 	});
 
-	test('has no default limit and enforces a configured limit', async () => {
+	test('defaults to 4000 characters and accepts a larger configured limit', async () => {
 		const payload = { value: 'x'.repeat(3200) };
-		const ecwt = await createEcwtFactory().create(payload, { ttl });
+		const ecwt = await createEcwtFactory(5000).create(payload, { ttl });
 		expect(base62.decode(ecwt.token).length).toBeLessThan(4000);
 		expect(ecwt.token.length).toBeGreaterThan(4000);
-		const verified = await createEcwtFactory().verify(ecwt.token);
+		expect(ecwt.token.length).toBeLessThanOrEqual(5000);
+		const verified = await createEcwtFactory(5000).verify(ecwt.token);
 		expect(verified.data).toStrictEqual(payload);
 
-		await expect(
-			createEcwtFactory(4000).create(payload, { ttl }),
-		).rejects.toThrow(
+		await expect(createEcwtFactory().create(payload, { ttl })).rejects.toThrow(
 			new RangeError('Token exceeds maximum length of 4000 characters.'),
 		);
-		await expect(createEcwtFactory(4000).verify(ecwt.token)).rejects.toThrow(
+		const decode = vi.spyOn(base62, 'decode');
+		await expect(createEcwtFactory().verify(ecwt.token)).rejects.toThrow(
 			EcwtParseError,
 		);
+		await expect(
+			createEcwtFactory().safeVerify(ecwt.token),
+		).resolves.toStrictEqual({
+			success: false,
+			ecwt: null,
+		});
+		expect(decode).not.toHaveBeenCalled();
 	});
 
 	test('rejects oversized buffers before Base62 encoding', async () => {
 		const encode = vi.spyOn(base62, 'encode');
 		// The binary fits the limit, but its Base62 representation does not.
-		const promise = createEcwtFactory(4000).create(
+		const promise = createEcwtFactory().create(
 			{ value: Buffer.alloc(3200) },
 			{ ttl },
 		);

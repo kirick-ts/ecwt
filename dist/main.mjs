@@ -215,7 +215,7 @@ var EcwtFactory = class {
 	#snowflakeFactory;
 	#redis_key_revoked;
 	#encryption_key;
-	#max_token_length;
+	#max_token_length = 4e3;
 	#validator;
 	#cborEncoder = null;
 	constructor({ redisClient, lruCache, snowflakeFactory, options }) {
@@ -224,8 +224,10 @@ var EcwtFactory = class {
 		this.#snowflakeFactory = snowflakeFactory;
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
 		this.#encryption_key = options.key;
-		this.#max_token_length = options.max_token_length ?? Infinity;
-		if (options.max_token_length !== void 0 && (!Number.isSafeInteger(this.#max_token_length) || this.#max_token_length <= 0)) throw new TypeError("max_token_length must be a positive safe integer.");
+		if (options.max_token_length !== void 0) {
+			if (!Number.isSafeInteger(options.max_token_length) || options.max_token_length <= 0) throw new TypeError("Option max_token_length must be a positive safe integer.");
+			this.#max_token_length = options.max_token_length;
+		}
 		this.#validator = options.validator;
 		if (options.senml_key_map) this.#cborEncoder = new Encoder({ keyMap: options.senml_key_map });
 	}

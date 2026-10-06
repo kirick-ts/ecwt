@@ -43,7 +43,7 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 		namespace?: string;
 		/** Encryption key, 64 bytes. */
 		key: Buffer;
-		/** Maximum serialized token length in Base62 characters. Unlimited if omitted. */
+		/** Maximum serialized token length in Base62 characters. Defaults to 4000. */
 		max_token_length?: number;
 		/** Validator for token data. Should return validated value or throw an error. */
 		validator?: (value: unknown) => D;
@@ -74,7 +74,7 @@ export class EcwtFactory<
 	#snowflakeFactory: SnowflakeFactory;
 	#redis_key_revoked: string;
 	#encryption_key: Buffer;
-	#max_token_length: number;
+	#max_token_length = 4000;
 	#validator: ((value: unknown) => D) | undefined;
 	#cborEncoder: CborEncoder | null = null;
 
@@ -90,14 +90,18 @@ export class EcwtFactory<
 
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
 		this.#encryption_key = options.key;
-		this.#max_token_length = options.max_token_length ?? Infinity;
 
-		if (
-			options.max_token_length !== undefined
-			&& (!Number.isSafeInteger(this.#max_token_length)
-				|| this.#max_token_length <= 0)
-		) {
-			throw new TypeError('max_token_length must be a positive safe integer.');
+		if (options.max_token_length !== undefined) {
+			if (
+				!Number.isSafeInteger(options.max_token_length)
+				|| options.max_token_length <= 0
+			) {
+				throw new TypeError(
+					'Option max_token_length must be a positive safe integer.',
+				);
+			}
+
+			this.#max_token_length = options.max_token_length;
 		}
 
 		this.#validator = options.validator;
