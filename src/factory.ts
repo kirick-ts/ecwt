@@ -140,7 +140,7 @@ export class EcwtFactory<
 		]);
 		const token = base62.encode(token_encrypted);
 
-		this.setCache(token, {
+		this.#setCache(token, {
 			snowflake,
 			ttl_initial: options.ttl,
 			data,
@@ -159,7 +159,7 @@ export class EcwtFactory<
 	 * @param token - String representation of token.
 	 * @param cache_value - Data to be stored in cache.
 	 */
-	private setCache(token: string, cache_value: LRUCacheValue) {
+	#setCache(token: string, cache_value: LRUCacheValue) {
 		this.#lruCache?.set(token, cache_value, {
 			ttl: cache_value.ttl_initial * 1000,
 		});
@@ -222,7 +222,7 @@ export class EcwtFactory<
 				data = data_raw as D;
 			}
 
-			this.setCache(token, {
+			this.#setCache(token, {
 				snowflake,
 				ttl_initial,
 				data,

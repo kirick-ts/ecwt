@@ -53,6 +53,37 @@ var EcwtRevokedError = class extends EcwtInvalidError {
 	message = "Ecwt is revoked.";
 };
 //#endregion
+//#region src/utils.ts
+const base62 = (0, base_x.default)("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+/**
+* Freezes own data properties and Map/Set entries recursively, without invoking getters.
+* Values that reject freezing are retained; built-in and class internal state can remain mutable.
+* @param object - Object to freeze in place.
+* @returns The same object with recursively readonly properties.
+*/
+function deepFreeze(object) {
+	const visited = /* @__PURE__ */ new WeakSet();
+	/** @param value - Value to visit and freeze if supported. */
+	function freeze(value) {
+		if (value === null || typeof value !== "object" && typeof value !== "function" || visited.has(value)) return;
+		visited.add(value);
+		if (value instanceof Map) for (const [key, item] of value) {
+			freeze(key);
+			freeze(item);
+		}
+		else if (value instanceof Set) for (const item of value) freeze(item);
+		for (const name of Reflect.ownKeys(value)) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, name);
+			if (descriptor && "value" in descriptor) freeze(descriptor.value);
+		}
+		try {
+			Object.freeze(value);
+		} catch {}
+	}
+	freeze(object);
+	return object;
+}
+//#endregion
 //#region src/token.ts
 var Ecwt = class {
 	/** Token string representation. */
@@ -77,7 +108,7 @@ var Ecwt = class {
 		this.token = options.token;
 		this.id = options.snowflake.toBase62();
 		this.snowflake = options.snowflake;
-		this.data = Object.freeze(options.data);
+		this.data = deepFreeze(options.data);
 		this.#ecwtFactory = ecwtFactory;
 		this.#ttl_initial = options.ttl_initial;
 	}
@@ -100,9 +131,6 @@ var Ecwt = class {
 		return this.#ecwtFactory._revoke(this.id, this.snowflake.timestamp, this.#ttl_initial);
 	}
 };
-//#endregion
-//#region src/utils.ts
-const base62 = (0, base_x.default)("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
 //#endregion
 //#region src/factory.ts
 const REDIS_PREFIX = "@ecwt:";
@@ -150,7 +178,7 @@ var EcwtFactory = class {
 		const token_raw = this.#cborEncoder ? this.#cborEncoder.encode(payload) : (0, cbor_x.encode)(payload);
 		const token_encrypted = Buffer.concat([Buffer.from([240]), (0, _noble_ciphers_aes_js.aessiv)(this.#encryption_key).encrypt(token_raw)]);
 		const token = base62.encode(token_encrypted);
-		this.setCache(token, {
+		this.#setCache(token, {
 			snowflake,
 			ttl_initial: options.ttl,
 			data
@@ -167,7 +195,7 @@ var EcwtFactory = class {
 	* @param token - String representation of token.
 	* @param cache_value - Data to be stored in cache.
 	*/
-	setCache(token, cache_value) {
+	#setCache(token, cache_value) {
 		this.#lruCache?.set(token, cache_value, { ttl: cache_value.ttl_initial * 1e3 });
 	}
 	/**
@@ -200,7 +228,7 @@ var EcwtFactory = class {
 				throw new EcwtParseError();
 			}
 			else data = data_raw;
-			this.setCache(token, {
+			this.#setCache(token, {
 				snowflake,
 				ttl_initial,
 				data
