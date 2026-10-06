@@ -23,17 +23,19 @@ import {
 import { Ecwt } from './token.js';
 import { base62 } from './utils.js';
 
-export type LRUCacheValue = {
+export type LRUCacheValue<
+	D extends Record<string, unknown> = Record<string, unknown>,
+> = {
 	snowflake: Snowflake;
 	ttl_initial: number;
-	data: Record<string, unknown>;
+	data: D;
 };
 type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
 type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 	/** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */
 	redisClient?: RedisClient;
 	/** LRUCache instance. If not provided, tokens will be decrypted every time they are verified. */
-	lruCache?: LRUCache<string, LRUCacheValue>;
+	lruCache?: LRUCache<string, LRUCacheValue<D>>;
 	/** SnowflakeFactory instance. Generates unique IDs for tokens. */
 	snowflakeFactory: SnowflakeFactory;
 	options: {
@@ -65,7 +67,7 @@ export class EcwtFactory<
 	const D extends Record<string, unknown> = Record<string, unknown>,
 > {
 	#redisClient: RedisClient | undefined;
-	#lruCache: LRUCache<string, LRUCacheValue> | undefined;
+	#lruCache: LRUCache<string, LRUCacheValue<D>> | undefined;
 	#snowflakeFactory: SnowflakeFactory;
 	#redis_key_revoked: string;
 	#encryption_key: Buffer;
@@ -159,10 +161,58 @@ export class EcwtFactory<
 	 * @param token - String representation of token.
 	 * @param cache_value - Data to be stored in cache.
 	 */
-	#setCache(token: string, cache_value: LRUCacheValue) {
+	#setCache(token: string, cache_value: LRUCacheValue<D>) {
 		this.#lruCache?.set(token, cache_value, {
 			ttl: cache_value.ttl_initial * 1000,
 		});
+	}
+
+	async #decryptToken(token: string): Promise<LRUCacheValue<D>> {
+		let cached_entry = this.#lruCache?.get(token);
+		if (cached_entry) {
+			return cached_entry;
+		}
+
+		try {
+			const token_encrypted = Buffer.from(base62.decode(token));
+
+			const token_raw =
+				token_encrypted[0] === 0xf0
+					? Buffer.from(
+							aessiv(this.#encryption_key).decrypt(token_encrypted.subarray(1)),
+						)
+					: await evilcryptDecrypt(token_encrypted, this.#encryption_key);
+
+			const payload = v.parse(
+				tokenSchema,
+				this.#cborEncoder
+					? this.#cborEncoder.decode(token_raw)
+					: cborDecode(token_raw),
+			);
+
+			const snowflake_buffer = payload[0];
+			const ttl_initial = payload[1];
+			const data_raw = payload[2];
+
+			const snowflake = this.#snowflakeFactory.parse(snowflake_buffer);
+
+			const data =
+				typeof this.#validator === 'function'
+					? this.#validator(data_raw)
+					: (data_raw as D);
+
+			cached_entry = {
+				snowflake,
+				ttl_initial,
+				data,
+			};
+		} catch {
+			throw new EcwtParseError();
+		}
+
+		this.#setCache(token, cached_entry);
+
+		return cached_entry;
 	}
 
 	/**
@@ -176,66 +226,7 @@ export class EcwtFactory<
 			throw new TypeError('Token must be a string.');
 		}
 
-		let snowflake: Snowflake;
-		let ttl_initial: number;
-		let data: D;
-
-		const cached_entry = this.#lruCache?.get(token);
-		// token is not cached
-		if (cached_entry === undefined) {
-			const token_encrypted = Buffer.from(base62.decode(token));
-
-			let token_raw;
-			try {
-				token_raw =
-					token_encrypted[0] === 0xf0
-						? Buffer.from(
-								aessiv(this.#encryption_key).decrypt(
-									token_encrypted.subarray(1),
-								),
-							)
-						: await evilcryptDecrypt(token_encrypted, this.#encryption_key);
-			} catch {
-				throw new EcwtParseError();
-			}
-
-			const payload = v.parse(
-				tokenSchema,
-				this.#cborEncoder
-					? this.#cborEncoder.decode(token_raw)
-					: cborDecode(token_raw),
-			);
-
-			const snowflake_buffer = payload[0];
-			ttl_initial = payload[1];
-			const data_raw = payload[2];
-
-			snowflake = this.#snowflakeFactory.parse(snowflake_buffer);
-
-			if (typeof this.#validator === 'function') {
-				try {
-					data = this.#validator(data_raw);
-				} catch {
-					throw new EcwtParseError();
-				}
-			} else {
-				data = data_raw as D;
-			}
-
-			this.#setCache(token, {
-				snowflake,
-				ttl_initial,
-				data,
-			});
-		} else {
-			snowflake = cached_entry.snowflake;
-			ttl_initial = cached_entry.ttl_initial;
-			data = cached_entry.data as D;
-		}
-
-		// console.log('snowflake', snowflake);
-		// console.log('ttl', ttl);
-		// console.log('data', data);
+		const { snowflake, ttl_initial, data } = await this.#decryptToken(token);
 
 		const ecwt = new Ecwt(this, {
 			token,
@@ -278,9 +269,8 @@ export class EcwtFactory<
 				ecwt: Ecwt<D> | null;
 		  }
 	> {
-		let ecwt = null;
 		try {
-			ecwt = await this.verify(token);
+			const ecwt = await this.verify(token);
 
 			return {
 				success: true,
@@ -294,10 +284,14 @@ export class EcwtFactory<
 				};
 			}
 
-			if (error instanceof EcwtInvalidError) {
+			if (
+				error instanceof EcwtInvalidError
+				|| error instanceof EcwtExpiredError
+				|| error instanceof EcwtRevokedError
+			) {
 				return {
 					success: false,
-					ecwt,
+					ecwt: error.ecwt,
 				};
 			}
 

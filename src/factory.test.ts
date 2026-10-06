@@ -39,7 +39,7 @@ const validator = v.parser(dataSchema);
 
 type Data = v.InferOutput<typeof dataSchema>;
 
-const lruCache = new LRUCache<string, LRUCacheValue>({ max: 100 });
+const lruCache = new LRUCache<string, LRUCacheValue<Data>>({ max: 100 });
 
 const snowflakeFactory = new SnowflakeFactory(snowflake_options);
 
@@ -140,7 +140,7 @@ describe('create token', () => {
 
 		const validate = vi.fn(validator);
 		const verifier = new EcwtFactory({
-			lruCache: new LRUCache<string, LRUCacheValue>({ max: 10 }),
+			lruCache: new LRUCache<string, LRUCacheValue<Data>>({ max: 10 }),
 			snowflakeFactory,
 			options: { key, validator: validate },
 		});

@@ -32,13 +32,15 @@ const dataSchema = v.object({
 	permissions: v.object({ admin: v.boolean() }),
 });
 
+type Data = v.InferOutput<typeof dataSchema>;
+
 for (const has_cache of [false, true]) {
 	describe(`freeze token data (${has_cache ? 'with cache' : 'without cache'})`, () => {
 		test('create and verify preserve Buffers and validator classes', async () => {
 			const validator = vi.fn(v.parser(dataSchema));
 			const verifier = new EcwtFactory({
 				lruCache: has_cache
-					? new LRUCache<string, LRUCacheValue>({ max: 10 })
+					? new LRUCache<string, LRUCacheValue<Data>>({ max: 10 })
 					: undefined,
 				snowflakeFactory,
 				options: { key, validator },

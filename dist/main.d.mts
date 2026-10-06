@@ -2,17 +2,17 @@ import { Snowflake, SnowflakeFactory } from "@kirick/snowflake";
 import { LRUCache } from "lru-cache";
 import { RedisClientType, RedisFunctions, RedisModules, RedisScripts } from "redis";
 //#region src/factory.d.ts
-type LRUCacheValue = {
+type LRUCacheValue<D extends Record<string, unknown> = Record<string, unknown>> = {
   snowflake: Snowflake;
   ttl_initial: number;
-  data: Record<string, unknown>;
+  data: D;
 };
 type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
 type EcwtFactoryArguments<D extends Record<string, unknown>> = {
   /** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */
   redisClient?: RedisClient;
   /** LRUCache instance. If not provided, tokens will be decrypted every time they are verified. */
-  lruCache?: LRUCache<string, LRUCacheValue>;
+  lruCache?: LRUCache<string, LRUCacheValue<D>>;
   /** SnowflakeFactory instance. Generates unique IDs for tokens. */
   snowflakeFactory: SnowflakeFactory;
   options: {
