@@ -279,12 +279,11 @@ export class EcwtFactory<
 			throw new EcwtExpiredError(ecwt);
 		}
 
-		if (this.#redisClient) {
-			await this.#migrateExpired();
-
-			if (await this.#redisClient.HEXISTS(this.#redis_key_revoked, ecwt.id)) {
-				throw new EcwtRevokedError(ecwt);
-			}
+		if (
+			this.#redisClient
+			&& (await this.#redisClient.HEXISTS(this.#redis_key_revoked, ecwt.id))
+		) {
+			throw new EcwtRevokedError(ecwt);
 		}
 
 		return ecwt;
@@ -350,8 +349,6 @@ export class EcwtFactory<
 		ttl_initial: number,
 	): Promise<void> {
 		if (this.#redisClient) {
-			await this.#migrateExpired();
-
 			const expires_in_ms = created_at_ms + ttl_initial * 1000 - Date.now();
 			if (expires_in_ms > 0) {
 				await this.#redisClient
@@ -365,22 +362,6 @@ export class EcwtFactory<
 			console.warn(
 				'[ecwt] Redis client is not provided. Tokens cannot be revoked.',
 			);
-		}
-	}
-
-	#migrated = false;
-
-	async #migrateExpired() {
-		if (this.#redisClient && !this.#migrated) {
-			await this.#redisClient.EVAL(
-				'local key = KEYS[1] if redis.call("TYPE", key)["ok"] ~= "zset" then return end local key_hash = key .. ":hash" local ts_now = tonumber(ARGV[1]) local cursor = "0" repeat local scan = redis.call("ZSCAN", key, cursor, "COUNT", 1000) cursor = scan[1] local items = scan[2] for i = 1, #items, 2 do local field = items[i] local expire_at = tonumber(items[i + 1]) local expire_in = expire_at and expire_at - ts_now if expire_in and expire_in > 0 then redis.call("HSET", key_hash, field, "") redis.call("HPEXPIRE", key_hash, expire_in, "FIELDS", 1, field) end end until cursor == "0" redis.call("DEL", key) if redis.call("EXISTS", key_hash) == 1 then redis.call("RENAME", key_hash, key) end',
-				{
-					keys: [this.#redis_key_revoked],
-					arguments: [String(Date.now())],
-				},
-			);
-
-			this.#migrated = true;
 		}
 	}
 
