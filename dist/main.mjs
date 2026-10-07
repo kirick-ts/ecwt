@@ -1,5 +1,5 @@
 import { aessiv } from "@noble/ciphers/aes.js";
-import { Encoder, decode, encode } from "cbor-x";
+import { Encoder } from "cbor-x";
 import { LRUCache } from "lru-cache";
 import * as v from "valibot";
 //#region src/errors.ts
@@ -204,8 +204,12 @@ var Ecwt = class {
 const REDIS_PREFIX = "@ecwt:";
 const BASE62_EXPANSION_FACTOR = 8 / Math.log2(62);
 const TTL_MAX = 63072e3;
+const sharedCborEncoder = new Encoder({
+	useRecords: false,
+	tagUint8Array: false
+});
 const tokenSchema = v.tuple([
-	v.pipe(v.unknown(), v.check((value) => Buffer.isBuffer(value)), v.transform((value) => value)),
+	v.instance(Uint8Array),
 	v.number(),
 	v.record(v.string(), v.unknown())
 ]);
@@ -217,7 +221,7 @@ var EcwtFactory = class {
 	#encryption_key;
 	#max_token_length = 4e3;
 	#validator;
-	#cborEncoder = null;
+	#cborEncoder = sharedCborEncoder;
 	constructor({ redisClient, snowflakeFactory, options }) {
 		this.#redisClient = redisClient;
 		this.#lruCache = options.lru_cache ? new LRUCache(options.lru_cache) : void 0;
@@ -229,7 +233,11 @@ var EcwtFactory = class {
 			this.#max_token_length = options.max_token_length;
 		}
 		this.#validator = options.validator;
-		if (options.senml_key_map) this.#cborEncoder = new Encoder({ keyMap: options.senml_key_map });
+		if (options.senml_key_map) this.#cborEncoder = new Encoder({
+			useRecords: false,
+			tagUint8Array: false,
+			keyMap: options.senml_key_map
+		});
 	}
 	/**
 	* Creates new token.
@@ -245,12 +253,15 @@ var EcwtFactory = class {
 		if (typeof this.#validator === "function") data = this.#validator(data);
 		const snowflake = await this.#snowflakeFactory.createSafe();
 		const payload = [
-			snowflake.toBuffer(),
+			snowflake.toUint8Array(),
 			options.ttl,
 			data
 		];
-		const token_raw = this.#cborEncoder ? this.#cborEncoder.encode(payload) : encode(payload);
-		const token_encrypted = Buffer.concat([Buffer.from([240]), aessiv(this.#encryption_key).encrypt(token_raw)]);
+		const token_raw = this.#cborEncoder.encode(payload);
+		const ciphertext = aessiv(this.#encryption_key).encrypt(token_raw);
+		const token_encrypted = new Uint8Array(ciphertext.byteLength + 1);
+		token_encrypted[0] = 240;
+		token_encrypted.set(ciphertext, 1);
 		if (token_encrypted.byteLength * BASE62_EXPANSION_FACTOR > this.#max_token_length) throw new RangeError(`Token exceeds maximum length of ${this.#max_token_length} characters.`);
 		const token = base62.encode(token_encrypted);
 		this.#setCache(token, {
@@ -277,15 +288,15 @@ var EcwtFactory = class {
 		let cached_entry = this.#lruCache?.get(token);
 		if (cached_entry) return cached_entry;
 		try {
-			const token_encrypted = Buffer.from(base62.decode(token));
+			const token_encrypted = base62.decode(token);
 			if (token_encrypted[0] !== 240) throw new EcwtParseError();
-			const token_raw = Buffer.from(aessiv(this.#encryption_key).decrypt(token_encrypted.subarray(1)));
-			const payload = v.parse(tokenSchema, this.#cborEncoder ? this.#cborEncoder.decode(token_raw) : decode(token_raw));
-			const snowflake_buffer = payload[0];
+			const token_raw = aessiv(this.#encryption_key).decrypt(token_encrypted.subarray(1));
+			const payload = v.parse(tokenSchema, this.#cborEncoder.decode(token_raw));
+			const snowflake_bytes = payload[0];
 			const ttl_initial = payload[1];
 			const data_raw = payload[2];
 			cached_entry = {
-				snowflake: this.#snowflakeFactory.parse(snowflake_buffer),
+				snowflake: this.#snowflakeFactory.parse(snowflake_bytes),
 				ttl_initial,
 				data: typeof this.#validator === "function" ? this.#validator(data_raw) : data_raw
 			};

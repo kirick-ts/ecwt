@@ -17,7 +17,7 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
     /** Namespace for Redis keys. */
     namespace?: string;
     /** Encryption key, 64 bytes. */
-    key: Buffer;
+    key: Uint8Array;
     /**
      * Options for a private LRU cache. If not provided, tokens will be decrypted every time they are verified.
      * @see https://npmx.dev/package/lru-cache#user-content-usage

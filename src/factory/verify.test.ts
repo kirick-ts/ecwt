@@ -3,7 +3,8 @@
 
 import { SnowflakeFactory } from '@kirick/snowflake';
 import { aessiv } from '@noble/ciphers/aes.js';
-import { encode as cborEncode } from 'cbor-x';
+import { concatBytes } from '@noble/ciphers/utils.js';
+import { Encoder as CborEncoder } from 'cbor-x';
 import { createClient } from 'redis';
 import { afterAll, describe, expect, test } from 'vitest';
 import {
@@ -31,6 +32,10 @@ afterAll(async () => {
 const snowflakeFactory = new SnowflakeFactory(snowflake_options);
 const snowflake = await snowflakeFactory.createSafe();
 const ttl = 3600;
+const cborEncoder = new CborEncoder({
+	useRecords: false,
+	tagUint8Array: false,
+});
 const ecwtFactory = new EcwtFactory({
 	redisClient,
 	snowflakeFactory,
@@ -39,10 +44,10 @@ const ecwtFactory = new EcwtFactory({
 
 function encryptPayload(value: unknown, version = 0xf0) {
 	return base62.encode(
-		Buffer.concat([
-			Buffer.from([version]),
-			aessiv(key).encrypt(cborEncode(value)),
-		]),
+		concatBytes(
+			Uint8Array.of(version),
+			aessiv(key).encrypt(cborEncoder.encode(value)),
+		),
 	);
 }
 
@@ -81,14 +86,17 @@ async function expectInvalidError(
 // Representative token format and parsing failures.
 // Dependency errors should be normalized to EcwtParseError.
 const parse_errors = [
-	['EcwtParseError: truncated ciphertext', base62.encode(Buffer.from([0xf0]))],
+	['EcwtParseError: truncated ciphertext', base62.encode(Uint8Array.of(0xf0))],
 	[
 		'EcwtParseError: unsupported token version',
-		encryptPayload([snowflake.toBuffer(), ttl, data], 0x02),
+		encryptPayload([snowflake.toUint8Array(), ttl, data], 0x02),
 	],
 	['Error: invalid Base62', '?'],
 	['ValiError: invalid payload', encryptPayload(null)],
-	['RangeError: short snowflake', encryptPayload([Buffer.alloc(7), ttl, data])],
+	[
+		'RangeError: short snowflake',
+		encryptPayload([new Uint8Array(7), ttl, data]),
+	],
 ] as const;
 
 for (const method of ['verify', 'safeVerify'] as const) {
@@ -114,13 +122,13 @@ for (const method of ['verify', 'safeVerify'] as const) {
 		}
 
 		test('EcwtInvalidError: fractional TTL', async () => {
-			const token = encryptPayload([snowflake.toBuffer(), 0.5, data]);
+			const token = encryptPayload([snowflake.toUint8Array(), 0.5, data]);
 
 			await expectInvalidError(method, token, EcwtInvalidError);
 		});
 
 		test('EcwtExpiredError: expired token', async () => {
-			const token = encryptPayload([snowflake.toBuffer(), -1, data]);
+			const token = encryptPayload([snowflake.toUint8Array(), -1, data]);
 
 			await expectInvalidError(method, token, EcwtExpiredError);
 		});

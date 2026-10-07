@@ -2,7 +2,8 @@
 
 import { SnowflakeFactory } from '@kirick/snowflake';
 import { aessiv } from '@noble/ciphers/aes.js';
-import { encode as cborEncode } from 'cbor-x';
+import { concatBytes } from '@noble/ciphers/utils.js';
+import { Encoder as CborEncoder } from 'cbor-x';
 import type { LRUCache } from 'lru-cache';
 import { describe, expect, test } from 'vitest';
 import { type LRUCacheValue, TTL_MAX } from '../factory.js';
@@ -11,6 +12,10 @@ import { data_ecwt as data, key, snowflake_options } from '../test-fixtures.js';
 import { base62 } from '../utils.js';
 
 const snowflakeFactory = new SnowflakeFactory(snowflake_options);
+const cborEncoder = new CborEncoder({
+	useRecords: false,
+	tagUint8Array: false,
+});
 
 // Ten 365-day years in seconds.
 const valid_ttls = [1, 60, 3600, TTL_MAX - 1, TTL_MAX];
@@ -36,9 +41,9 @@ function createEcwtFactory(
 
 async function verifyToken(ttl: number, has_cache: boolean) {
 	const snowflake = await snowflakeFactory.createSafe();
-	const token_raw = cborEncode([snowflake.toBuffer(), ttl, data]);
+	const token_raw = cborEncoder.encode([snowflake.toUint8Array(), ttl, data]);
 	const token = base62.encode(
-		Buffer.concat([Buffer.from([0xf0]), aessiv(key).encrypt(token_raw)]),
+		concatBytes(Uint8Array.of(0xf0), aessiv(key).encrypt(token_raw)),
 	);
 	const ecwtFactory = createEcwtFactory(has_cache ? { max: 100 } : undefined);
 	if (has_cache) {

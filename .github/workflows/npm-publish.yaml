@@ -131,7 +131,7 @@ jobs:
       - name: Publish to NPM
         run: npm publish --access public --provenance --tag ${{ needs.version.outputs.npm_tag }}
 
-      - uses: kirick13/npm-publish-notify-action@v1.1
+      - uses: kirick13/npm-publish-notify-action@v1.2
         with:
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}

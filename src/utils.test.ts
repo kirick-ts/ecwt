@@ -43,9 +43,9 @@ describe('deepFreeze', () => {
 
 	test('unsupported values do not prevent freezing other properties', () => {
 		const data = {
-			buffer: Buffer.from([1]),
+			bytes: Uint8Array.of(1),
 			typed: new Uint16Array([1]),
-			empty: Buffer.alloc(0),
+			empty: new Uint8Array(0),
 			view: new DataView(new ArrayBuffer(1)),
 			permissions: { admin: false },
 		};
@@ -53,14 +53,14 @@ describe('deepFreeze', () => {
 		expect(deepFreeze(data)).toBe(data);
 		expect(Object.isFrozen(data)).toBe(true);
 		expect(Object.isFrozen(data.permissions)).toBe(true);
-		expect(Object.isFrozen(data.buffer)).toBe(false);
+		expect(Object.isFrozen(data.bytes)).toBe(false);
 		expect(Object.isFrozen(data.typed)).toBe(false);
 		expect(Object.isFrozen(data.empty)).toBe(true);
 		expect(Object.isFrozen(data.view)).toBe(true);
-		data.buffer.writeUInt8(2);
+		data.bytes[0] = 2;
 		data.typed[0] = 2;
 		data.view.setUint8(0, 2);
-		expect(data.buffer[0]).toBe(2);
+		expect(data.bytes[0]).toBe(2);
 		expect(data.typed[0]).toBe(2);
 		expect(data.view.getUint8(0)).toBe(2);
 	});

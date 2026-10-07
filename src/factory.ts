@@ -1,10 +1,6 @@
 import type { Snowflake, SnowflakeFactory } from '@kirick/snowflake';
 import { aessiv } from '@noble/ciphers/aes.js';
-import {
-	Encoder as CborEncoder,
-	decode as cborDecode,
-	encode as cborEncode,
-} from 'cbor-x';
+import { Encoder as CborEncoder } from 'cbor-x';
 import { LRUCache } from 'lru-cache';
 import type {
 	RedisClientType,
@@ -39,7 +35,7 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 		/** Namespace for Redis keys. */
 		namespace?: string;
 		/** Encryption key, 64 bytes. */
-		key: Buffer;
+		key: Uint8Array;
 		/**
 		 * Options for a private LRU cache. If not provided, tokens will be decrypted every time they are verified.
 		 * @see https://npmx.dev/package/lru-cache#user-content-usage
@@ -58,12 +54,13 @@ const REDIS_PREFIX = '@ecwt:';
 const BASE62_EXPANSION_FACTOR = 8 / Math.log2(62);
 export const TTL_MAX: number = 2 * 365 * 24 * 60 * 60;
 
+const sharedCborEncoder = new CborEncoder({
+	useRecords: false,
+	tagUint8Array: false,
+});
+
 const tokenSchema = v.tuple([
-	v.pipe(
-		v.unknown(),
-		v.check((value) => Buffer.isBuffer(value)),
-		v.transform((value) => value as Buffer<ArrayBufferLike>),
-	),
+	v.instance(Uint8Array<ArrayBufferLike>),
 	v.number(),
 	v.record(v.string(), v.unknown()),
 ]);
@@ -75,10 +72,10 @@ export class EcwtFactory<
 	#lruCache: LRUCache<string, LRUCacheValue<D>> | undefined;
 	#snowflakeFactory: SnowflakeFactory;
 	#redis_key_revoked: string;
-	#encryption_key: Buffer;
+	#encryption_key: Uint8Array;
 	#max_token_length = 4000;
 	#validator: ((value: unknown) => D) | undefined;
-	#cborEncoder: CborEncoder | null = null;
+	#cborEncoder: CborEncoder = sharedCborEncoder;
 
 	constructor({
 		redisClient,
@@ -111,6 +108,8 @@ export class EcwtFactory<
 
 		if (options.senml_key_map) {
 			this.#cborEncoder = new CborEncoder({
+				useRecords: false,
+				tagUint8Array: false,
 				keyMap: options.senml_key_map,
 			});
 		}
@@ -149,18 +148,16 @@ export class EcwtFactory<
 
 		const snowflake = await this.#snowflakeFactory.createSafe();
 		const payload: v.InferOutput<typeof tokenSchema> = [
-			snowflake.toBuffer(),
+			snowflake.toUint8Array(),
 			options.ttl,
 			data,
 		];
-		const token_raw = this.#cborEncoder
-			? this.#cborEncoder.encode(payload)
-			: cborEncode(payload);
+		const token_raw = this.#cborEncoder.encode(payload);
 
-		const token_encrypted = Buffer.concat([
-			Buffer.from([0xf0]),
-			aessiv(this.#encryption_key).encrypt(token_raw),
-		]);
+		const ciphertext = aessiv(this.#encryption_key).encrypt(token_raw);
+		const token_encrypted = new Uint8Array(ciphertext.byteLength + 1);
+		token_encrypted[0] = 0xf0;
+		token_encrypted.set(ciphertext, 1);
 		// Use a conservative upper bound for the Base62 length before encoding.
 		if (
 			token_encrypted.byteLength * BASE62_EXPANSION_FACTOR
@@ -205,28 +202,23 @@ export class EcwtFactory<
 		}
 
 		try {
-			const token_encrypted = Buffer.from(base62.decode(token));
+			const token_encrypted = base62.decode(token);
 
 			if (token_encrypted[0] !== 0xf0) {
 				throw new EcwtParseError();
 			}
 
-			const token_raw = Buffer.from(
-				aessiv(this.#encryption_key).decrypt(token_encrypted.subarray(1)),
+			const token_raw = aessiv(this.#encryption_key).decrypt(
+				token_encrypted.subarray(1),
 			);
 
-			const payload = v.parse(
-				tokenSchema,
-				this.#cborEncoder
-					? this.#cborEncoder.decode(token_raw)
-					: cborDecode(token_raw),
-			);
+			const payload = v.parse(tokenSchema, this.#cborEncoder.decode(token_raw));
 
-			const snowflake_buffer = payload[0];
+			const snowflake_bytes = payload[0];
 			const ttl_initial = payload[1];
 			const data_raw = payload[2];
 
-			const snowflake = this.#snowflakeFactory.parse(snowflake_buffer);
+			const snowflake = this.#snowflakeFactory.parse(snowflake_bytes);
 
 			const data =
 				typeof this.#validator === 'function'

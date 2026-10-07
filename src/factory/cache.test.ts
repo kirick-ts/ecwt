@@ -18,7 +18,7 @@ describe('private LRU cache', () => {
 		const ecwt = await issuer.create(data, { ttl });
 		const verifier = new EcwtFactory({
 			snowflakeFactory,
-			options: { key: Buffer.alloc(64), lru_cache },
+			options: { key: new Uint8Array(64), lru_cache },
 		});
 
 		await expect(verifier.verify(ecwt.token)).rejects.toThrow(EcwtParseError);

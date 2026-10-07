@@ -97,11 +97,11 @@ describe('create token length', () => {
 		expect(decode).not.toHaveBeenCalled();
 	});
 
-	test('rejects oversized buffers before Base62 encoding', async () => {
+	test('rejects oversized byte arrays before Base62 encoding', async () => {
 		const encode = vi.spyOn(base62, 'encode');
 		// The binary fits the limit, but its Base62 representation does not.
 		const promise = createEcwtFactory().create(
-			{ value: Buffer.alloc(3200) },
+			{ value: new Uint8Array(3200) },
 			{ ttl },
 		);
 

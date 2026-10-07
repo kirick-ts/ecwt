@@ -26,13 +26,13 @@ const dataSchema = v.object({
 		v.string(),
 		v.transform((address) => new IPAddress(address)),
 	),
-	bytes: v.instance(Buffer),
+	bytes: v.instance(Uint8Array),
 	permissions: v.object({ admin: v.boolean() }),
 });
 
 for (const has_cache of [false, true]) {
 	describe(`freeze token data (${has_cache ? 'with cache' : 'without cache'})`, () => {
-		test('create and verify preserve Buffers and validator classes', async () => {
+		test('create and verify preserve Uint8Arrays and validator classes', async () => {
 			const validator = vi.fn(v.parser(dataSchema));
 			const verifier = new EcwtFactory({
 				snowflakeFactory,
@@ -44,7 +44,7 @@ for (const has_cache of [false, true]) {
 			});
 			const data = {
 				ip: '127.0.0.1',
-				bytes: Buffer.from([127, 0, 0, 1]),
+				bytes: Uint8Array.of(127, 0, 0, 1),
 				permissions: { admin: false },
 			};
 			const ecwt = await ecwtFactory.create(data, { ttl: 10 });
@@ -58,7 +58,7 @@ for (const has_cache of [false, true]) {
 			expect(Object.isFrozen(ecwt_verified.data.ip)).toBe(true);
 			expect(ecwt_verified.data.ip).toBeInstanceOf(IPAddress);
 			expect(ecwt_verified.data.ip.equals(new IPAddress(data.ip))).toBe(true);
-			expect(Buffer.isBuffer(ecwt_verified.data.bytes)).toBe(true);
+			expect(ecwt_verified.data.bytes).toBeInstanceOf(Uint8Array);
 			expect(ecwt_verified.data.bytes).toStrictEqual(data.bytes);
 
 			const ecwt_verified_again = await verifier.verify(ecwt.token);

@@ -137,7 +137,7 @@ const ecwtFactory = new EcwtFactory({
     // Unique namespace for Redis keys to prevent collisions
     namespace: 'auth-service',
     // Your 64-byte random secret key for AES-SIV (store securely)
-    key: Buffer.from('YOUR_BASE64_KEY', 'base64'),
+    key: Uint8Array.fromBase64('YOUR_BASE64_KEY'),
     // Optional: maximum serialized token length in Base62 characters, defaults to 4000
     max_token_length: 4000,
     // Schema validator for payload structure validation
@@ -174,7 +174,11 @@ console.log(`Remaining validity: ${ecwt.getTTL()} seconds`);
 
 ### Token Verification
 
-Starting with 0.5.0, only AES-SIV tokens with format version `0xF0` are accepted. Older EvilCrypt tokens must be reissued; verification rejects them with `EcwtParseError`.
+Starting with 0.5.0:
+
+- only AES-SIV tokens with format version `0xF0` are accepted. Older EvilCrypt tokens must be reissued; verification rejects them with `EcwtParseError`;
+- binary values decoded during verification are `Uint8Array` instances instead of Node.js `Buffer`;
+  - binary encoding remains compatible with AES-SIV tokens from 0.4.1.
 
 Verify tokens with appropriate error handling:
 
