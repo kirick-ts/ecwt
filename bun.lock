@@ -24,7 +24,7 @@
         "vitest": "5.0.3",
       },
       "peerDependencies": {
-        "@kirick/snowflake": "github:kirick-ts/snowflake#c669d54cac5999ddec0a989eca8ae5ab2b8ac3f1",
+        "@kirick/snowflake": "^0.3.2",
         "redis": "^4.6",
       },
     },
@@ -153,8 +153,6 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
     "@kirick/lint": ["@kirick/lint@0.4.1", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0", "eslint-plugin-jsdoc": "63.1.0", "eslint-plugin-n": "18.2.2", "eslint-plugin-promise": "7.3.0", "eslint-plugin-unicorn": "72.0.0", "eslint-plugin-vue": "10.9.2", "typescript-eslint": "8.64.0" }, "peerDependencies": { "eslint": "10.7.0", "oxlint": "1.74.0" }, "bin": { "lint-upgrade": "dist/main.mjs", "lint": "lint.sh" } }, "sha512-F2FYCFHKaI4pNOBFiYYYCBk+iiRBAOM/vxMMvF2mFFhBiUUDImphyakVLhWg4RTHy/CzLQgZhj8I/xGS7k810A=="],
-
-    "@kirick/snowflake": ["@kirick/snowflake@github:kirick-ts/snowflake#c669d54", { "dependencies": { "base-x": "5.0.1" } }, "kirick-ts-snowflake-c669d54", "sha512-xESTv1SuqhEH5YdjUH1/FQ6Z8UWrFjGHm895j9u6wWs4wttGszA5HTShJghxQ+TDDx1kOPg3P1iUfvQ3EJCP7Q=="],
 
     "@noble/ciphers": ["@noble/ciphers@2.4.0", "", {}, "sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw=="],
 
