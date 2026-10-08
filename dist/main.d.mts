@@ -1,36 +1,36 @@
-import { Snowflake, SnowflakeFactory } from "@kirick/snowflake";
 import { LRUCache } from "lru-cache";
+import { Snowflake, SnowflakeFactory } from "@kirick/snowflake";
 import { RedisClientType, RedisFunctions, RedisModules, RedisScripts } from "redis";
 //#region src/factory.d.ts
-type LRUCacheValue<D extends Record<string, unknown> = Record<string, unknown>> = {
-  snowflake: Snowflake;
-  ttl_initial: number;
-  data: D;
-};
 type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
 type EcwtFactoryArguments<D extends Record<string, unknown>> = {
   /** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */
   redisClient?: RedisClient;
-  /** LRUCache instance. If not provided, tokens will be decrypted every time they are verified. */
-  lruCache?: LRUCache<string, LRUCacheValue<D>>;
   /** SnowflakeFactory instance. Generates unique IDs for tokens. */
   snowflakeFactory: SnowflakeFactory;
   options: {
     /** Namespace for Redis keys. */
     namespace?: string;
     /** Encryption key, 64 bytes. */
-    key: Buffer;
-    /** Maximum serialized token length in Base62 characters. Unlimited if omitted. */
+    key: Uint8Array;
+    /**
+     * Options for a private LRU cache. If not provided, tokens will be decrypted every time they are verified.
+     * @see https://npmx.dev/package/lru-cache#user-content-usage
+     */
+    lru_cache?: LRUCache.Options<string, Uint8Array, unknown>;
+    /** Maximum serialized token length in Base62 characters. Defaults to 4000. */
     max_token_length?: number;
     /** Validator for token data. Should return validated value or throw an error. */
-    validator?: (value: unknown) => D;
+    validator?: (value: D) => D;
     /** Payload object keys mapped for their SenML keys. */
     senml_key_map?: Record<string, number>;
   };
 };
 export declare class EcwtFactory<const D extends Record<string, unknown> = Record<string, unknown>> {
   #private;
-  constructor({ redisClient, lruCache, snowflakeFactory, options }: EcwtFactoryArguments<D>);
+  /** @internal */
+  _snowflakeFactory: SnowflakeFactory;
+  constructor({ redisClient, snowflakeFactory, options }: EcwtFactoryArguments<D>);
   /**
    * Creates new token.
    * @async
@@ -43,6 +43,15 @@ export declare class EcwtFactory<const D extends Record<string, unknown> = Recor
     /** Time to live in **seconds**. */
     ttl: number;
   }): Promise<Ecwt<D>>;
+  /**
+   * @internal
+   * @param token_raw - Raw token data to be decoded.
+   */
+  _decodeToken(token_raw: Uint8Array): {
+    snowflake_bytes: Uint8Array;
+    ttl_initial: number;
+    data: D;
+  };
   /**
    * Parses token.
    * @param token String representation of token.
@@ -92,28 +101,19 @@ type _ReadonlyObjectDeep<ObjectType extends object> = { readonly [KeyType in key
 //#region src/token.d.ts
 export declare class Ecwt<const D extends Record<string, unknown> = Record<string, unknown>> {
   #private;
-  /** Token string representation. */
   readonly token: string;
   /** Token ID. */
   readonly id: string;
   /** Snowflake associated with token. */
   readonly snowflake: Snowflake;
-  /** Data stored in token. */
-  readonly data: ReadonlyDeep<D>;
+  /** Time to live in **seconds** at the moment of token creation. */
+  readonly ttl_initial: number;
   /**
    * @param ecwtFactory -
-   * @param options -
-   * @param options.token String representation of token.
-   * @param options.snowflake -
-   * @param options.ttl_initial Time to live in **seconds** at the moment of token creation.
-   * @param options.data Data stored in token.
+   * @param token - String representation of token.
+   * @param token_raw - Byte array representation of token.
    */
-  constructor(ecwtFactory: EcwtFactory<D>, options: {
-    token: string;
-    snowflake: Snowflake;
-    ttl_initial: number;
-    data: D;
-  });
+  constructor(ecwtFactory: EcwtFactory<D>, token: string, token_raw: Uint8Array);
   /**
    * Unix timestamp of token expiration in **seconds**.
    * @returns -
@@ -123,7 +123,8 @@ export declare class Ecwt<const D extends Record<string, unknown> = Record<strin
    * Actual time to live in **seconds**.
    * @returns -
    */
-  getTTL(): number;
+  get ttl(): number;
+  get data(): ReadonlyDeep<D>;
   /** Revokes token. */
   revoke(): Promise<void>;
 }

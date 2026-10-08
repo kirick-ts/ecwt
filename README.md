@@ -62,20 +62,19 @@ await redisClient.connect();
 
 #### `lru-cache` to avoid decrypt the same token multiple times (optional)
 
-Without a cache, every verification decrypts and validates the token. With a cache, repeated verification reuses the decoded payload while still checking expiration and revocation.
+`lru-cache` is included with ECWT. Pass cache options as `options.lru_cache` to let each factory create its own private cache. The same options can be reused across factories without sharing cached tokens. Omit `options.lru_cache` to disable caching.
+
+Without a cache, every verification decrypts and validates the token. With a cache, repeated verification reuses the decrypted bytes while still decoding and validating the payload and checking expiration and revocation. Each access to `ecwt.data` decodes and validates a fresh copy of the payload, including its byte arrays.
 
 ```javascript
-import { LRUCache } from 'lru-cache';
-
-const lruCache = new LRUCache({
+const lru_cache = {
   max: 1000, // maximum of 1000 items
-  ttl: 60 * 60 * 1000, // 1 hour
-});
+};
 ```
 
 #### Validation library of your choice (optional)
 
-By specifying the schema, you also validate the payloads. Schema is a function that takes a value and returns it back or throws.
+By specifying the schema, you also validate the payloads. The validator is a synchronous function of type `(value: D) => D` that returns validated data or throws. It should preserve the data's types and accept its CBOR-decoded representation; transformations between strings and class instances require codecs, which are not yet supported.
 
 In our example, we use [valibot](https://valibot.dev) library.
 
@@ -107,7 +106,6 @@ First, configure the EcwtFactory with your environment dependencies:
 ```javascript
 import { EcwtFactory } from 'ecwt';
 import { SnowflakeFactory } from '@kirick/snowflake';
-import { LRUCache } from 'lru-cache';
 import { createClient } from 'redis';
 
 // Required: Initialize SnowflakeFactory for token ID generation
@@ -117,10 +115,9 @@ const snowflakeFactory = new SnowflakeFactory({
 });
 
 // Optional: Cache decoded tokens for repeated verification
-const lruCache = new LRUCache({
+const lru_cache = {
   max: 1000, // Maximum cache size
-  ttl: 60 * 60 * 1000, // Cache expiration (1 hour)
-});
+};
 
 // Optional: Set up Redis client for token revocation capabilities
 const redisClient = createClient({
@@ -134,14 +131,14 @@ await redisClient.connect();
 // Initialize the factory with your configuration
 const ecwtFactory = new EcwtFactory({
   redisClient,
-  lruCache,
   snowflakeFactory,
   options: {
+    lru_cache,
     // Unique namespace for Redis keys to prevent collisions
     namespace: 'auth-service',
     // Your 64-byte random secret key for AES-SIV (store securely)
-    key: Buffer.from('YOUR_BASE64_KEY', 'base64'),
-    // Optional: maximum serialized token length in Base62 characters, no limit if omitted
+    key: Uint8Array.fromBase64('YOUR_BASE64_KEY'),
+    // Optional: maximum serialized token length in Base62 characters, defaults to 4000
     max_token_length: 4000,
     // Schema validator for payload structure validation
     validator: myValidator,
@@ -172,10 +169,16 @@ const serializedToken = ecwt.token;
 // Access token metadata
 console.log(`Token ID: ${ecwt.id}`);
 console.log(`Expiration timestamp: ${ecwt.ts_expired}`);
-console.log(`Remaining validity: ${ecwt.getTTL()} seconds`);
+console.log(`Remaining validity: ${ecwt.ttl} seconds`);
 ```
 
 ### Token Verification
+
+Starting with 0.5.0:
+
+- only AES-SIV tokens with format version `0xF0` are accepted. Older EvilCrypt tokens must be reissued; verification rejects them with `EcwtParseError`;
+- binary values decoded during verification are `Uint8Array` instances instead of Node.js `Buffer`;
+  - binary encoding remains compatible with AES-SIV tokens from 0.4.1.
 
 Verify tokens with appropriate error handling:
 
@@ -307,3 +310,9 @@ console.log(`Size reduction: ${((1 - optimizedToken.token.length / standardToken
 // > Optimized token size: 132 bytes
 // > Size reduction: 31.61%
 ```
+
+## Future Plans
+
+ECWT plans to support [Standard Codecs](https://github.com/standard-schema/standard-schema/pull/180) once the specification is finalized and supported by validation libraries. Codecs will be accepted alongside the existing validation function.
+
+This will allow stored data and application data to use different types. For example, `create()` could accept an IP address class instance, encode it as a string in CBOR, and reconstruct the instance when token data is read. The existing `(value: D) => D` validation function will remain supported for payloads using the same types in both directions.
