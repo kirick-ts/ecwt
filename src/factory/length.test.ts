@@ -4,7 +4,6 @@
 import { SnowflakeFactory } from '@kirick/snowflake';
 import { LRUCache } from 'lru-cache';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { LRUCacheValue } from '../factory.js';
 import { EcwtFactory, EcwtParseError } from '../main.js';
 import { data_ecwt as data, key, snowflake_options } from '../test-fixtures.js';
 import { base62 } from '../utils.js';
@@ -14,7 +13,7 @@ const ttl = 3600;
 
 function createEcwtFactory(
 	max_token_length?: number,
-	lru_cache?: LRUCache.Options<string, LRUCacheValue, unknown>,
+	lru_cache?: LRUCache.Options<string, Uint8Array, unknown>,
 ) {
 	return new EcwtFactory({
 		snowflakeFactory,

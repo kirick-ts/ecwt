@@ -68,7 +68,7 @@ describe('create token', () => {
 		expect(base62.decode(ecwt.token)[0]).toBe(0xf0);
 		// console.log('token', ecwt.token);
 		expect(ecwt.ts_expired).toBe(ts_expired);
-		expect(ecwt.getTTL()).toBe(10);
+		expect(ecwt.ttl).toBe(10);
 	});
 
 	test('verify', async () => {

@@ -1,12 +1,17 @@
 // oxlint-disable max-lines-per-function
 
 import { SnowflakeFactory } from '@kirick/snowflake';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { EcwtFactory, EcwtParseError } from '../main.js';
 import { data_ecwt as data, key, snowflake_options } from '../test-fixtures.js';
+import { base62 } from '../utils.js';
 
 const snowflakeFactory = new SnowflakeFactory(snowflake_options);
 const ttl = 3600;
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 describe('private LRU cache', () => {
 	test('shared options do not bypass another encryption key', async () => {
@@ -57,26 +62,30 @@ describe('private LRU cache', () => {
 
 	test('eviction and purging affect only the owning factory', async () => {
 		const lru_cache = { max: 1 };
-		const validate_issuer = vi.fn(() => data);
-		const validate_verifier = vi.fn(() => data);
 		const issuer = new EcwtFactory({
 			snowflakeFactory,
-			options: { key, lru_cache, validator: validate_issuer },
+			options: { key, lru_cache },
 		});
 		const verifier = new EcwtFactory({
 			snowflakeFactory,
-			options: { key, lru_cache, validator: validate_verifier },
+			options: { key, lru_cache },
 		});
+		const decode = vi.spyOn(base62, 'decode');
 		const ecwt = await issuer.create(data, { ttl });
+		await issuer.verify(ecwt.token);
+		expect(decode).not.toHaveBeenCalled();
+
 		await verifier.verify(ecwt.token);
+		expect(decode).toHaveBeenCalledTimes(1);
+
 		await issuer.create(data, { ttl });
 		await issuer.verify(ecwt.token);
-		expect(validate_issuer).toHaveBeenCalledTimes(3);
+		await verifier.verify(ecwt.token);
+		expect(decode).toHaveBeenCalledTimes(2);
 
 		issuer._purgeCache();
 		await issuer.verify(ecwt.token);
 		await verifier.verify(ecwt.token);
-		expect(validate_issuer).toHaveBeenCalledTimes(4);
-		expect(validate_verifier).toHaveBeenCalledTimes(1);
+		expect(decode).toHaveBeenCalledTimes(3);
 	});
 });

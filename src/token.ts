@@ -1,46 +1,39 @@
 import type { Snowflake } from '@kirick/snowflake';
 import type { EcwtFactory } from './factory.js';
 import type { ReadonlyDeep } from './utils/types.js';
-import { deepFreeze } from './utils.js';
 
 export class Ecwt<
 	const D extends Record<string, unknown> = Record<string, unknown>,
 > {
-	/** Token string representation. */
-	readonly token: string;
 	/** Token ID. */
 	readonly id: string;
 	/** Snowflake associated with token. */
 	readonly snowflake: Snowflake;
-	/** Data stored in token. */
-	readonly data: ReadonlyDeep<D>;
+	/** Time to live in **seconds** at the moment of token creation. */
+	readonly ttl_initial: number;
 	#ecwtFactory: EcwtFactory<D>;
-	#ttl_initial: number;
+	#token_raw: Uint8Array;
 
 	/**
 	 * @param ecwtFactory -
-	 * @param options -
-	 * @param options.token String representation of token.
-	 * @param options.snowflake -
-	 * @param options.ttl_initial Time to live in **seconds** at the moment of token creation.
-	 * @param options.data Data stored in token.
+	 * @param token - String representation of token.
+	 * @param token_raw - Byte array representation of token.
 	 */
 	constructor(
 		ecwtFactory: EcwtFactory<D>,
-		options: {
-			token: string;
-			snowflake: Snowflake;
-			ttl_initial: number;
-			data: D;
-		},
+		readonly token: string,
+		token_raw: Uint8Array,
 	) {
-		this.token = options.token;
-		this.id = options.snowflake.toBase62();
-		this.snowflake = options.snowflake;
-		this.data = deepFreeze(options.data);
+		const { snowflake_bytes, ttl_initial } =
+			ecwtFactory._decodeToken(token_raw);
+		const snowflake = ecwtFactory._snowflakeFactory.parse(snowflake_bytes);
+
+		this.id = snowflake.toBase62();
+		this.snowflake = snowflake;
+		this.ttl_initial = ttl_initial;
 
 		this.#ecwtFactory = ecwtFactory;
-		this.#ttl_initial = options.ttl_initial;
+		this.#token_raw = token_raw;
 	}
 
 	/**
@@ -48,18 +41,23 @@ export class Ecwt<
 	 * @returns -
 	 */
 	get ts_expired(): number {
-		return Math.floor(this.snowflake.timestamp / 1000) + this.#ttl_initial;
+		return Math.floor(this.snowflake.timestamp / 1000) + this.ttl_initial;
 	}
 
 	/**
 	 * Actual time to live in **seconds**.
 	 * @returns -
 	 */
-	getTTL(): number {
+	get ttl(): number {
 		return (
-			this.#ttl_initial
+			this.ttl_initial
 			- Math.floor((Date.now() - this.snowflake.timestamp) / 1000)
 		);
+	}
+
+	get data(): ReadonlyDeep<D> {
+		return this.#ecwtFactory._decodeToken(this.#token_raw)
+			.data as ReadonlyDeep<D>;
 	}
 
 	/** Revokes token. */
@@ -67,7 +65,7 @@ export class Ecwt<
 		return this.#ecwtFactory._revoke(
 			this.id,
 			this.snowflake.timestamp,
-			this.#ttl_initial,
+			this.ttl_initial,
 		);
 	}
 }

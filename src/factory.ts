@@ -1,4 +1,4 @@
-import type { Snowflake, SnowflakeFactory } from '@kirick/snowflake';
+import type { SnowflakeFactory } from '@kirick/snowflake';
 import { aessiv } from '@noble/ciphers/aes.js';
 import { Encoder as CborEncoder } from 'cbor-x';
 import { LRUCache } from 'lru-cache';
@@ -18,13 +18,6 @@ import {
 import { Ecwt } from './token.js';
 import { base62 } from './utils.js';
 
-export type LRUCacheValue<
-	D extends Record<string, unknown> = Record<string, unknown>,
-> = {
-	snowflake: Snowflake;
-	ttl_initial: number;
-	data: D;
-};
 type RedisClient = RedisClientType<RedisModules, RedisFunctions, RedisScripts>;
 type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 	/** RedisClient instance. If not provided, tokens can not be revoked and can not be checked for revocation. */
@@ -40,11 +33,11 @@ type EcwtFactoryArguments<D extends Record<string, unknown>> = {
 		 * Options for a private LRU cache. If not provided, tokens will be decrypted every time they are verified.
 		 * @see https://npmx.dev/package/lru-cache#user-content-usage
 		 */
-		lru_cache?: LRUCache.Options<string, LRUCacheValue<D>, unknown>;
+		lru_cache?: LRUCache.Options<string, Uint8Array, unknown>;
 		/** Maximum serialized token length in Base62 characters. Defaults to 4000. */
 		max_token_length?: number;
 		/** Validator for token data. Should return validated value or throw an error. */
-		validator?: (value: unknown) => D;
+		validator?: (value: D) => D;
 		/** Payload object keys mapped for their SenML keys. */
 		senml_key_map?: Record<string, number>;
 	};
@@ -57,6 +50,7 @@ export const TTL_MAX: number = 2 * 365 * 24 * 60 * 60;
 const sharedCborEncoder = new CborEncoder({
 	useRecords: false,
 	tagUint8Array: false,
+	copyBuffers: true,
 });
 
 const tokenSchema = v.tuple([
@@ -69,12 +63,14 @@ export class EcwtFactory<
 	const D extends Record<string, unknown> = Record<string, unknown>,
 > {
 	#redisClient: RedisClient | undefined;
-	#lruCache: LRUCache<string, LRUCacheValue<D>> | undefined;
-	#snowflakeFactory: SnowflakeFactory;
+	#lruCache: LRUCache<string, Uint8Array> | undefined;
+	/** @internal */
+	// eslint-disable-next-line unicorn/prefer-private-class-fields
+	_snowflakeFactory: SnowflakeFactory;
 	#redis_key_revoked: string;
 	#encryption_key: Uint8Array;
 	#max_token_length = 4000;
-	#validator: ((value: unknown) => D) | undefined;
+	#validator: ((value: D) => D) | undefined;
 	#cborEncoder: CborEncoder = sharedCborEncoder;
 
 	constructor({
@@ -86,7 +82,7 @@ export class EcwtFactory<
 		this.#lruCache = options.lru_cache
 			? new LRUCache(options.lru_cache)
 			: undefined;
-		this.#snowflakeFactory = snowflakeFactory;
+		this._snowflakeFactory = snowflakeFactory;
 
 		this.#redis_key_revoked = `${REDIS_PREFIX}${options.namespace}:revoked`;
 		this.#encryption_key = options.key;
@@ -110,6 +106,7 @@ export class EcwtFactory<
 			this.#cborEncoder = new CborEncoder({
 				useRecords: false,
 				tagUint8Array: false,
+				copyBuffers: true,
 				keyMap: options.senml_key_map,
 			});
 		}
@@ -146,13 +143,18 @@ export class EcwtFactory<
 			data = this.#validator(data);
 		}
 
-		const snowflake = await this.#snowflakeFactory.createSafe();
+		const snowflake = await this._snowflakeFactory.createSafe();
 		const payload: v.InferOutput<typeof tokenSchema> = [
 			snowflake.toUint8Array(),
 			options.ttl,
 			data,
 		];
-		const token_raw = this.#cborEncoder.encode(payload);
+		const encoded = this.#cborEncoder.encode(payload);
+		const token_raw = new Uint8Array(
+			encoded.buffer,
+			encoded.byteOffset,
+			encoded.byteLength,
+		);
 
 		const ciphertext = aessiv(this.#encryption_key).encrypt(token_raw);
 		const token_encrypted = new Uint8Array(ciphertext.byteLength + 1);
@@ -169,36 +171,29 @@ export class EcwtFactory<
 		}
 
 		const token = base62.encode(token_encrypted);
+		const ecwt = new Ecwt(this, token, token_raw);
 
-		this.#setCache(token, {
-			snowflake,
-			ttl_initial: options.ttl,
-			data,
-		});
+		this.#setCache(token, token_raw, ecwt);
 
-		return new Ecwt(this, {
-			token,
-			snowflake,
-			ttl_initial: options.ttl,
-			data,
-		});
+		return ecwt;
 	}
 
 	/**
 	 * Sets data to cache.
 	 * @param token - String representation of token.
-	 * @param cache_value - Data to be stored in cache.
+	 * @param token_raw - Raw token data to be stored in cache.
+	 * @param ecwt - Ecwt instance to use for TTL calculation.
 	 */
-	#setCache(token: string, cache_value: LRUCacheValue<D>) {
-		this.#lruCache?.set(token, cache_value, {
-			ttl: cache_value.ttl_initial * 1000,
+	#setCache(token: string, token_raw: Uint8Array, ecwt: Ecwt<D>) {
+		this.#lruCache?.set(token, token_raw, {
+			ttl: ecwt.ttl * 1000,
 		});
 	}
 
-	#decryptToken(token: string): LRUCacheValue<D> {
-		let cached_entry = this.#lruCache?.get(token);
-		if (cached_entry) {
-			return cached_entry;
+	#decryptToken(token: string): [is_cached: boolean, token_raw: Uint8Array] {
+		const token_raw = this.#lruCache?.get(token);
+		if (token_raw) {
+			return [true, token_raw];
 		}
 
 		try {
@@ -208,35 +203,41 @@ export class EcwtFactory<
 				throw new EcwtParseError();
 			}
 
-			const token_raw = aessiv(this.#encryption_key).decrypt(
-				token_encrypted.subarray(1),
-			);
-
-			const payload = v.parse(tokenSchema, this.#cborEncoder.decode(token_raw));
-
-			const snowflake_bytes = payload[0];
-			const ttl_initial = payload[1];
-			const data_raw = payload[2];
-
-			const snowflake = this.#snowflakeFactory.parse(snowflake_bytes);
-
-			const data =
-				typeof this.#validator === 'function'
-					? this.#validator(data_raw)
-					: (data_raw as D);
-
-			cached_entry = {
-				snowflake,
-				ttl_initial,
-				data,
-			};
+			return [
+				false,
+				aessiv(this.#encryption_key).decrypt(token_encrypted.subarray(1)),
+			];
 		} catch {
 			throw new EcwtParseError();
 		}
+	}
 
-		this.#setCache(token, cached_entry);
+	/**
+	 * @internal
+	 * @param token_raw - Raw token data to be decoded.
+	 */
+	// eslint-disable-next-line unicorn/prefer-private-class-fields
+	_decodeToken(token_raw: Uint8Array): {
+		snowflake_bytes: Uint8Array;
+		ttl_initial: number;
+		data: D;
+	} {
+		const payload = v.parse(tokenSchema, this.#cborEncoder.decode(token_raw));
 
-		return cached_entry;
+		const snowflake_bytes = payload[0];
+		const ttl_initial = payload[1];
+		const data_raw = payload[2] as D;
+
+		const data =
+			typeof this.#validator === 'function'
+				? this.#validator(data_raw)
+				: data_raw;
+
+		return {
+			snowflake_bytes,
+			ttl_initial,
+			data,
+		};
 	}
 
 	/**
@@ -254,20 +255,23 @@ export class EcwtFactory<
 			throw new EcwtParseError();
 		}
 
-		const { snowflake, ttl_initial, data } = this.#decryptToken(token);
+		const [is_cached, token_raw] = this.#decryptToken(token);
+		let ecwt: Ecwt<D>;
+		try {
+			ecwt = new Ecwt(this, token, token_raw);
+		} catch {
+			throw new EcwtParseError();
+		}
 
-		const ecwt = new Ecwt(this, {
-			token,
-			snowflake,
-			ttl_initial,
-			data,
-		});
+		if (!is_cached) {
+			this.#setCache(token, token_raw, ecwt);
+		}
 
-		if (!Number.isSafeInteger(ttl_initial) || ttl_initial > TTL_MAX) {
+		if (!Number.isSafeInteger(ecwt.ttl_initial) || ecwt.ttl_initial > TTL_MAX) {
 			throw new EcwtInvalidError(ecwt);
 		}
 
-		if (snowflake.timestamp + ttl_initial * 1000 < Date.now()) {
+		if (ecwt.snowflake.timestamp + ecwt.ttl_initial * 1000 < Date.now()) {
 			throw new EcwtExpiredError(ecwt);
 		}
 

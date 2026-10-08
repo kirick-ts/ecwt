@@ -64,7 +64,7 @@ await redisClient.connect();
 
 `lru-cache` is included with ECWT. Pass cache options as `options.lru_cache` to let each factory create its own private cache. The same options can be reused across factories without sharing cached tokens. Omit `options.lru_cache` to disable caching.
 
-Without a cache, every verification decrypts and validates the token. With a cache, repeated verification reuses the decoded payload while still checking expiration and revocation.
+Without a cache, every verification decrypts and validates the token. With a cache, repeated verification reuses the decrypted bytes while still decoding and validating the payload and checking expiration and revocation. Each access to `ecwt.data` decodes and validates a fresh copy of the payload, including its byte arrays.
 
 ```javascript
 const lru_cache = {
@@ -74,7 +74,7 @@ const lru_cache = {
 
 #### Validation library of your choice (optional)
 
-By specifying the schema, you also validate the payloads. Schema is a function that takes a value and returns it back or throws.
+By specifying the schema, you also validate the payloads. The validator is a synchronous function of type `(value: D) => D` that returns validated data or throws. It should preserve the data's types and accept its CBOR-decoded representation; transformations between strings and class instances require codecs, which are not yet supported.
 
 In our example, we use [valibot](https://valibot.dev) library.
 
@@ -169,7 +169,7 @@ const serializedToken = ecwt.token;
 // Access token metadata
 console.log(`Token ID: ${ecwt.id}`);
 console.log(`Expiration timestamp: ${ecwt.ts_expired}`);
-console.log(`Remaining validity: ${ecwt.getTTL()} seconds`);
+console.log(`Remaining validity: ${ecwt.ttl} seconds`);
 ```
 
 ### Token Verification
@@ -310,3 +310,9 @@ console.log(`Size reduction: ${((1 - optimizedToken.token.length / standardToken
 // > Optimized token size: 132 bytes
 // > Size reduction: 31.61%
 ```
+
+## Future Plans
+
+ECWT plans to support [Standard Codecs](https://github.com/standard-schema/standard-schema/pull/180) once the specification is finalized and supported by validation libraries. Codecs will be accepted alongside the existing validation function.
+
+This will allow stored data and application data to use different types. For example, `create()` could accept an IP address class instance, encode it as a string in CBOR, and reconstruct the instance when token data is read. The existing `(value: D) => D` validation function will remain supported for payloads using the same types in both directions.

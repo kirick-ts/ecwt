@@ -6,7 +6,7 @@ import { concatBytes } from '@noble/ciphers/utils.js';
 import { Encoder as CborEncoder } from 'cbor-x';
 import type { LRUCache } from 'lru-cache';
 import { describe, expect, test } from 'vitest';
-import { type LRUCacheValue, TTL_MAX } from '../factory.js';
+import { TTL_MAX } from '../factory.js';
 import { EcwtFactory, EcwtInvalidError } from '../main.js';
 import { data_ecwt as data, key, snowflake_options } from '../test-fixtures.js';
 import { base62 } from '../utils.js';
@@ -17,7 +17,6 @@ const cborEncoder = new CborEncoder({
 	tagUint8Array: false,
 });
 
-// Ten 365-day years in seconds.
 const valid_ttls = [1, 60, 3600, TTL_MAX - 1, TTL_MAX];
 const invalid_ttls = [
 	// oxlint-disable-next-line unicorn/prefer-number-properties
@@ -31,7 +30,7 @@ const invalid_ttls = [
 const excessive_ttls = [TTL_MAX + 1, Number.MAX_SAFE_INTEGER];
 
 function createEcwtFactory(
-	lru_cache?: LRUCache.Options<string, LRUCacheValue, unknown>,
+	lru_cache?: LRUCache.Options<string, Uint8Array, unknown>,
 ) {
 	return new EcwtFactory({
 		snowflakeFactory,
@@ -78,7 +77,7 @@ describe('create token TTL', () => {
 	}
 
 	for (const ttl of excessive_ttls) {
-		test(`TTL over 10 years ${ttl}`, async () => {
+		test(`TTL over maximum ${ttl}`, async () => {
 			const ecwtFactory = createEcwtFactory();
 			const promise = ecwtFactory.create(data, { ttl });
 
@@ -109,7 +108,7 @@ for (const has_cache of [false, true]) {
 		}
 
 		for (const ttl of excessive_ttls) {
-			test(`TTL over 10 years ${ttl}`, async () => {
+			test(`TTL over maximum ${ttl}`, async () => {
 				const promise = verifyToken(ttl, has_cache);
 
 				await expect(promise).rejects.toThrow(EcwtInvalidError);
