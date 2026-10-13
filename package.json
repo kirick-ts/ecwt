@@ -1,6 +1,6 @@
 {
 	"name": "ecwt",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"description": "Encrypted CBOR Web Token",
 	"publishConfig": {
 		"access": "public"
@@ -28,7 +28,7 @@
 	},
 	"peerDependencies": {
 		"@kirick/snowflake": "^0.3.2",
-		"redis": "^4.6"
+		"redis": "^4.7.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.4",
