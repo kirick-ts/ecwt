@@ -25,7 +25,7 @@
       },
       "peerDependencies": {
         "@kirick/snowflake": "^0.3.2",
-        "redis": "^4.6",
+        "redis": "^4.7.0",
       },
     },
   },
